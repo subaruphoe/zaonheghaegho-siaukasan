@@ -696,7 +696,7 @@
                         matchedChars.sort((a, b) => b.pron_weight - a.pron_weight);
                         results = results.concat(matchedChars);
                     } else {
-                        let bestWugniu = [];
+                        let bestWugniuPaths = [[]];
                         let bestTrad = "";
                         let bestSimp = "";
                         let hasValidChar = false;
@@ -714,7 +714,19 @@
                                     hasValidChar = true;
                                     bestTrad += tc;
                                     bestSimp += WUGNIU_DICT[tc].s;
-                                    bestWugniu.push(WUGNIU_DICT[tc].p[0]);
+                                    
+                                    const maxPw = WUGNIU_DICT[tc].pw[0];
+                                    const validProns = WUGNIU_DICT[tc].p.filter((p, idx) => WUGNIU_DICT[tc].pw[idx] === maxPw);
+                                    
+                                    let newPaths = [];
+                                    for (let path of bestWugniuPaths) {
+                                        for (let pron of validProns) {
+                                            newPaths.push([...path, pron]);
+                                        }
+                                    }
+                                    // Limit to 64 permutations to prevent browser lockup on giant pastes
+                                    bestWugniuPaths = newPaths.slice(0, 64);
+                                    
                                     i = j; // Advance
                                     matched = true;
                                     break;
@@ -725,13 +737,17 @@
                                 const c = inputStr[i];
                                 bestTrad += c;
                                 bestSimp += c;
-                                bestWugniu.push(c);
+                                for (let path of bestWugniuPaths) {
+                                    path.push(c);
+                                }
                                 i++;
                             }
                         }
 
                         if (hasValidChar) {
-                            results.push({ trad: bestTrad, simp: bestSimp, wugniu: bestWugniu.join(' '), pron_weight: 'N/A', w: 0 });
+                            for (let path of bestWugniuPaths) {
+                                results.push({ trad: bestTrad, simp: bestSimp, wugniu: path.join(' '), pron_weight: 'N/A', w: 0 });
+                            }
                         }
                     }
                     allResults = allResults.concat(results);
