@@ -742,17 +742,17 @@
 
                 row.innerHTML = `
                     <div style="${colStyle}">
-                        <div style="font-weight: 500; font-size: 1.3em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${res.trad}</div>
+                        <div style="font-weight: 500; font-size: 1.15em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${res.trad}</div>
                     </div>
                     <div style="${colStyle}">
-                        <div style="font-weight: 500; font-size: 1.3em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${res.simp}</div>
+                        <div style="font-weight: 500; font-size: 1.15em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${res.simp}</div>
                     </div>
                     <div style="${colStyle}">
-                        <div style="font-weight: 500; font-size: 1.1em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${wugniu}</div>
+                        <div style="font-weight: 500; font-size: 0.95em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${wugniu}</div>
                         <button class="copy-btn" onclick="navigator.clipboard.writeText('${wugniu}'); this.classList.add('success'); setTimeout(()=>{this.classList.remove('success');}, 1500);" style="position: absolute; right: 8px; bottom: 8px; font-size: 0.8em; padding: 0; width: 70px; height: 26px;"><span class="text-default">拷貝</span><span class="text-success">✓</span></button>
                     </div>
                     <div style="${lastColStyle}">
-                        <div style="font-weight: 500; font-size: 1.1em; color: var(--text-primary); font-family: 'Gentium Book Plus', serif; overflow-wrap: break-word; text-align: center;">${sinitic}</div>
+                        <div style="font-weight: 500; font-size: 0.95em; color: var(--text-primary); font-family: 'Gentium Book Plus', serif; overflow-wrap: break-word; text-align: center;">${sinitic}</div>
                         <button class="copy-btn" onclick="navigator.clipboard.writeText('${sinitic}'); this.classList.add('success'); setTimeout(()=>{this.classList.remove('success');}, 1500);" style="position: absolute; right: 8px; bottom: 8px; font-size: 0.8em; padding: 0; width: 70px; height: 26px;"><span class="text-default">拷貝</span><span class="text-success">✓</span></button>
                     </div>
                 `;
