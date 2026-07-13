@@ -31,11 +31,19 @@ final_dict = {}
 for word in dict_data:
     dict_data[word].sort(key=lambda x: x['weight'], reverse=True)
     prons = [x['pronunciation'] for x in dict_data[word]]
+    
+    total_weight = sum(x['weight'] for x in dict_data[word])
+    if total_weight > 0:
+        pws = [round((x['weight'] / total_weight) * 100) for x in dict_data[word]]
+    else:
+        pws = [100 for x in dict_data[word]]
+        
     max_weight = dict_data[word][0]['weight'] if dict_data[word] else 100
     simp = cc.convert(word)
     final_dict[word] = {
         "s": simp,
         "p": prons,
+        "pw": pws,
         "w": max_weight
     }
 

@@ -660,15 +660,17 @@
 
                 if (foundFull) {
                     const data = WUGNIU_DICT[tradMatch];
-                    data.p.forEach(pron => {
-                        results.push({ trad: tradMatch, simp: data.s, wugniu: pron, w: data.w || 0 });
+                    data.p.forEach((pron, idx) => {
+                        results.push({ trad: tradMatch, simp: data.s, wugniu: pron, pron_weight: data.pw[idx], w: data.w || 0 });
                     });
                 } else if (/^[a-zA-Z]+$/.test(inputStr)) {
                     // Wugniu reverse lookup
                     let matchedChars = [];
                     for (const [char, data] of Object.entries(WUGNIU_DICT)) {
                         if (data.p.includes(inputStr)) {
-                            matchedChars.push({ trad: char, simp: data.s, wugniu: inputStr, w: data.w || 0 });
+                            let pIndex = data.p.indexOf(inputStr);
+                            let pWeight = data.pw[pIndex];
+                            matchedChars.push({ trad: char, simp: data.s, wugniu: inputStr, pron_weight: pWeight, w: data.w || 0 });
                         }
                     }
                     // Sort by weight descending
@@ -679,30 +681,38 @@
                     let bestTrad = "";
                     let bestSimp = "";
                     let hasValidChar = false;
-                    let minWeight = 100;
 
-                    for (let i = 0; i < inputStr.length; i++) {
-                        const c = inputStr[i];
-                        let tc = c;
-                        if (WUGNIU_DICT[c]) tc = c;
-                        else if (SIMP_MAP[c]) tc = SIMP_MAP[c];
+                    let i = 0;
+                    while (i < inputStr.length) {
+                        let matched = false;
+                        for (let j = inputStr.length; j > i; j--) {
+                            const subStr = inputStr.substring(i, j);
+                            let tc = subStr;
+                            if (WUGNIU_DICT[subStr]) tc = subStr;
+                            else if (SIMP_MAP[subStr]) tc = SIMP_MAP[subStr];
 
-                        if (WUGNIU_DICT[tc]) {
-                            hasValidChar = true;
-                            bestTrad += tc;
-                            bestSimp += WUGNIU_DICT[tc].s;
-                            bestWugniu.push(WUGNIU_DICT[tc].p[0]);
-                            if (WUGNIU_DICT[tc].w < minWeight) minWeight = WUGNIU_DICT[tc].w;
-                        } else {
+                            if (WUGNIU_DICT[tc]) {
+                                hasValidChar = true;
+                                bestTrad += tc;
+                                bestSimp += WUGNIU_DICT[tc].s;
+                                bestWugniu.push(WUGNIU_DICT[tc].p[0]);
+                                i = j; // Advance
+                                matched = true;
+                                break;
+                            }
+                        }
+
+                        if (!matched) {
+                            const c = inputStr[i];
                             bestTrad += c;
                             bestSimp += c;
                             bestWugniu.push(c);
-                            minWeight = 0;
+                            i++;
                         }
                     }
 
                     if (hasValidChar) {
-                        results.push({ trad: bestTrad, simp: bestSimp, wugniu: bestWugniu.join(' '), w: minWeight });
+                        results.push({ trad: bestTrad, simp: bestSimp, wugniu: bestWugniu.join(' '), pron_weight: 'N/A', w: 0 });
                     }
                 }
                 allResults = allResults.concat(results);
@@ -722,10 +732,10 @@
             const hLastColStyle = "flex: 1; padding: 10px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px;";
 
             headerRow.innerHTML = `
-                <div style="${hColStyle}">繁體</div>
-                <div style="${hColStyle}">简体</div>
+                <div style="${hColStyle}">字詞</div>
                 <div style="${hColStyle}">學堂拼音</div>
-                <div style="${hLastColStyle}">國際音標</div>
+                <div style="${hColStyle}">國際音標</div>
+                <div style="${hLastColStyle}">詞頻</div>
             `;
             pane.appendChild(headerRow);
 
@@ -740,20 +750,27 @@
                 const colStyle = "flex: 1; padding: 12px; padding-bottom: 42px; border-right: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; position: relative; min-width: 0;";
                 const lastColStyle = "flex: 1; padding: 12px; padding-bottom: 42px; display: flex; align-items: center; justify-content: center; position: relative; min-width: 0;";
 
+                let charHtml = `<div style="font-weight: 500; font-size: 1.1em; color: var(--text-primary); text-align: center;">${res.trad}</div>`;
+                if (res.trad !== res.simp) {
+                    charHtml += `<div style="font-weight: 500; font-size: 1.1em; color: var(--text-primary); text-align: center;">${res.simp}</div>`;
+                }
+
                 row.innerHTML = `
                     <div style="${colStyle}">
-                        <div style="font-weight: 500; font-size: 1.15em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${res.trad}</div>
-                    </div>
-                    <div style="${colStyle}">
-                        <div style="font-weight: 500; font-size: 1.15em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${res.simp}</div>
+                        <div style="display:flex; flex-direction:column; align-items:center;">
+                            ${charHtml}
+                        </div>
                     </div>
                     <div style="${colStyle}">
                         <div style="font-weight: 500; font-size: 0.95em; color: var(--text-primary); overflow-wrap: break-word; text-align: center;">${wugniu}</div>
                         <button class="copy-btn" onclick="navigator.clipboard.writeText('${wugniu}'); this.classList.add('success'); setTimeout(()=>{this.classList.remove('success');}, 1500);" style="position: absolute; right: 8px; bottom: 8px; font-size: 0.8em; padding: 0; width: 70px; height: 26px;"><span class="text-default">拷貝</span><span class="text-success">✓</span></button>
                     </div>
-                    <div style="${lastColStyle}">
+                    <div style="${colStyle}">
                         <div style="font-weight: 500; font-size: 0.95em; color: var(--text-primary); font-family: 'Gentium Book Plus', serif; overflow-wrap: break-word; text-align: center;">${sinitic}</div>
                         <button class="copy-btn" onclick="navigator.clipboard.writeText('${sinitic}'); this.classList.add('success'); setTimeout(()=>{this.classList.remove('success');}, 1500);" style="position: absolute; right: 8px; bottom: 8px; font-size: 0.8em; padding: 0; width: 70px; height: 26px;"><span class="text-default">拷貝</span><span class="text-success">✓</span></button>
+                    </div>
+                    <div style="${lastColStyle}">
+                        <div style="font-weight: 500; font-size: 0.95em; color: var(--text-secondary); text-align: center;">${res.pron_weight === 'N/A' ? 'N/A' : res.pron_weight + '%'}</div>
                     </div>
                 `;
                 pane.appendChild(row);
