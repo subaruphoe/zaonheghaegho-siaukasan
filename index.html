@@ -82,7 +82,7 @@
             position: relative;
         }
 
-        .pane:focus-within {
+        .pane:focus-within, .pane:hover {
             border-color: var(--focus-color);
             box-shadow: 0 4px 24px rgba(0, 122, 255, 0.1);
         }
@@ -623,9 +623,8 @@
         setupCopyBtn(copyBtnBroad, inputBroad);
         setupCopyBtn(copyBtnWugniu, inputWugniu);
 
-        // Auto-focus input on load
+        // Resize textareas on load
         window.onload = () => {
-            inputSinitic.focus();
             resizeAll();
         };
         const SIMP_MAP = {};
