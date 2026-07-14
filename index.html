@@ -118,6 +118,197 @@
             box-sizing: border-box;
         }
 
+        .tone-output {
+            position: relative;
+            width: 100%;
+            min-height: 80px;
+            padding: 16px 12px 40px 12px;
+            font-family: 'Gentium Book Plus', serif;
+            font-size: 17px;
+            /* Slightly taller than the other panes: each line needs a little headroom above it
+               for the pitch curve overlay (drawn absolutely, doesn't take up flow space on its
+               own) to sit in, without colliding with the line above it. Kept modest — paired
+               with a small CURVE_BAND in buildToneCurveD() so the curve stays close to its own
+               syllable rather than floating in a big gap. */
+            line-height: 1.85;
+            color: var(--text-main);
+            box-sizing: border-box;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .syl-wrap {
+            position: relative;
+            display: inline-block;
+        }
+
+        .syl-text {
+            white-space: nowrap;
+        }
+
+        .syl-text sup {
+            font-size: 0.6em;
+            line-height: 0;
+            vertical-align: super;
+        }
+
+        .tone-curve-overlay {
+            position: absolute;
+            left: 0;
+            top: 0;
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        .tone-curve-path {
+            fill: none;
+            stroke: var(--focus-color);
+            stroke-width: 1.3;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            opacity: 0.85;
+        }
+
+        .tone-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px 12px 40px 12px;
+            font-family: inherit;
+            font-size: 17px;
+            line-height: 1.6;
+            color: var(--text-main);
+            background: transparent;
+            outline: none;
+            box-sizing: border-box;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .tone-input:empty:before {
+            content: attr(data-placeholder);
+            color: var(--text-muted);
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Inline sandhi-boundary marker: a small clickable badge that sits right in the
+           text flow between two syllables, replacing the plain space/dash/plus the user
+           typed there — this is what lets a single sentence mix LPS and RPS joins. */
+        .tb-inline-dot {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            margin: 0 2px;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+            vertical-align: middle;
+            transition: transform 0.1s ease-out, filter 0.15s ease-out;
+        }
+
+        .tb-inline-dot:hover {
+            filter: brightness(0.92);
+            transform: scale(1.12);
+        }
+
+        .tb-inline-dot.tb-lps {
+            color: var(--focus-color);
+            background: rgba(0, 122, 255, 0.14);
+        }
+
+        .tb-inline-dot.tb-rps {
+            color: #ff9500;
+            background: rgba(255, 149, 0, 0.16);
+        }
+
+        .tb-inline-dot.tb-break {
+            color: #ff3b30;
+            background: rgba(255, 59, 48, 0.14);
+            margin: 0 4px;
+        }
+
+        /* iOS-style popup menu for choosing a boundary's sandhi type */
+        .tb-popup {
+            position: fixed;
+            z-index: 1000;
+            width: 240px;
+            padding: 6px;
+            border-radius: 18px;
+            background: rgba(246, 246, 248, 0.78);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+            animation: tb-popup-in 0.16s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        @keyframes tb-popup-in {
+            from { opacity: 0; transform: scale(0.94) translateY(-4px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .tb-popup-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 8px 10px;
+            border: none;
+            background: transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.1s ease-out;
+        }
+
+        .tb-popup-option:hover, .tb-popup-option:active {
+            background: rgba(0, 0, 0, 0.08);
+        }
+
+        .tb-popup-option.tb-popup-current {
+            background: rgba(0, 122, 255, 0.1);
+        }
+
+        .tb-popup-dot {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .tb-popup-dot.tb-lps { color: var(--focus-color); background: rgba(0, 122, 255, 0.14); }
+        .tb-popup-dot.tb-rps { color: #ff9500; background: rgba(255, 149, 0, 0.16); }
+        .tb-popup-dot.tb-break { color: #ff3b30; background: rgba(255, 59, 48, 0.14); }
+
+        .tb-popup-text {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+        }
+
+        .tb-popup-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .tb-popup-desc {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            white-space: normal;
+        }
+
         button.copy-btn {
             position: absolute;
             bottom: 8px;
@@ -305,6 +496,41 @@
             </div>
         </div>
 
+        <!-- Tone Sandhi Section -->
+        <div class="header" style="margin-top: 20px; margin-bottom: 10px;">
+            <h2>連讀變調</h2>
+        </div>
+        <div class="pane-container" style="grid-template-columns: 1fr 1fr;">
+            <div class="pane">
+                <div class="pane-header">
+                    <span>拼音</span>
+                </div>
+                <div id="input-tone" class="tone-input" contenteditable="true"
+                    data-placeholder="箇𡍲打拼音，空格分字，撳一記「-」符號好揀變調規則"></div>
+                <button class="copy-btn" id="copy-btn-tone-in"><span class="text-default">拷貝</span><span
+                        class="text-success">✓</span></button>
+            </div>
+            <div class="pane">
+                <div class="pane-header">
+                    <span>國際音標＋連讀調值</span>
+                </div>
+                <div id="output-tone" class="tone-output"></div>
+                <button class="copy-btn" id="copy-btn-tone-out"><span class="text-default">拷貝</span><span
+                        class="text-success">✓</span></button>
+            </div>
+        </div>
+        <div style="text-align: center;">
+            <label class="switch-container">
+                <span>五度標記</span>
+                <div class="ios-switch">
+                    <input type="checkbox" id="tone-bar-switch"
+                        onchange="document.getElementById('input-tone').dispatchEvent(new Event('input'));">
+                    <span class="slider"></span>
+                </div>
+            </label>
+        </div>
+        <div id="tone-warnings" style="text-align:center; color: var(--text-muted); font-size: 13px; min-height: 18px; margin-bottom: 10px;"></div>
+
         <!-- Dictionary Lookup Section -->
         <div class="header" style="margin-top: 20px; margin-bottom: 10px;">
             <h2>尋字典發音</h2>
@@ -317,7 +543,7 @@
                 <span>弗分尖團</span>
                 <div class="ios-switch">
                     <input type="checkbox" id="jiantuan-switch" checked
-                        onchange="document.getElementById('lookup-input').dispatchEvent(new Event('input')); document.getElementById('input-wugniu').dispatchEvent(new Event('input')); document.getElementById('input-sinitic').dispatchEvent(new Event('input')); document.getElementById('input-broad').dispatchEvent(new Event('input'));">
+                        onchange="document.getElementById('lookup-input').dispatchEvent(new Event('input')); document.getElementById('input-wugniu').dispatchEvent(new Event('input')); document.getElementById('input-sinitic').dispatchEvent(new Event('input')); document.getElementById('input-broad').dispatchEvent(new Event('input')); document.getElementById('input-tone').dispatchEvent(new Event('input'));">
                     <span class="slider"></span>
                 </div>
             </label>
@@ -407,6 +633,659 @@
 
         const inits = Object.keys(INITIALS).sort((a, b) => b.length - a.length);
         const wInits = Object.keys(WUGNIU_INITIALS_SINITIC).sort((a, b) => b.length - a.length);
+
+        // --- Tone Sandhi Tool ---
+
+        const DEACCENT_MAP = { "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ý": "y" };
+
+        const YIN_INITIALS = new Set(["p", "ph", "f", "t", "th", "ts", "tsh", "c", "ch", "k", "kh", "s", "sh", "h", "mh", "nh", "nk", "lh"]);
+        const YANG_INITIALS = new Set(["b", "d", "v", "z", "j", "zh", "g", "gh", "gn", "m", "n", "l", "ng"]);
+
+        // LPS (left-prominent/chain) tone sandhi table. key = `${syllableCount}${firstSyllableToneCategory}`.
+        // RPS and the "10"/"1-" plumbing entries are out of scope (require syntax/compound-boundary info we don't have).
+        const SANDHI_TABLE = {
+            "11": "53", "21": "55 21", "31": "55 33 21", "41": "55 33 33 21", "51": "55 33 33 33 21",
+            "15": "34", "25": "33 44", "35": "33 55 21", "45": "33 55 33 21", "55": "33 55 33 33 21",
+            "16": "23", "26": "22 44", "36": "22 55 21", "46": "22 55 33 21", "56": "22 55 33 33 21",
+            "17": "55", "27": "33 44", "37": "33 55 21", "47": "33 55 33 21", "57": "33 55 33 33 21",
+            "18": "12", "28": "11 23", "38": "11 22 23", "48": "11 22 22 23", "58": "22 55 33 33 21",
+        };
+
+        // RPS (right-prominent/phrasal) tone sandhi: keyed by a syllable's OWN category.
+        // Only the syllable immediately left of the domain-final one neutralises this way;
+        // any syllable further left flattens to RPS_MULTI. The domain-final syllable keeps
+        // its own full LPS citation contour (SANDHI_TABLE[`1${category}`]).
+        const RPS_NEUTRAL = { 1: "44", 5: "44", 6: "33", 7: "44", 8: "22" };
+        const RPS_MULTI = "33";
+
+        const TONE_BAR = { "1": "˩", "2": "˨", "3": "˧", "4": "˦", "5": "˥" };
+        const toBars = s => s.split("").map(d => TONE_BAR[d] || "").join("");
+
+        // Lexical sandhi exceptions: syllables whose category for SANDHI-LOOKUP purposes
+        // differs from their standalone/citation category whenever they occur inside a
+        // multi-syllable domain (i.e. "in flow"). 弗 (veq) is citation tone 8 (yang-ru) alone,
+        // but behaves as tone 6 for chain/RPS purposes whenever combined with anything else.
+        const TONE_FLOW_EXCEPTIONS = { "veq": 6 };
+
+        const SUPERSCRIPT_DIGITS = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵" };
+
+        function stripAccentTone1(syl) {
+            syl = syl.normalize("NFC");
+            let isTone1 = false;
+            let plain = "";
+            for (const ch of syl) {
+                if (DEACCENT_MAP[ch]) {
+                    isTone1 = true;
+                    plain += DEACCENT_MAP[ch];
+                } else {
+                    plain += ch;
+                }
+            }
+            return { plain, isTone1 };
+        }
+
+        function deriveToneCategory(plainSyl) {
+            if (plainSyl === "m") return { category: 6, register: "yang", initial: "", checked: false };
+            if (plainSyl === "ng") return { category: 6, register: "yang", initial: "", checked: false };
+
+            let romInit = "";
+            let rest = plainSyl;
+
+            for (let init of wInits) {
+                if (plainSyl.startsWith(init)) {
+                    romInit = init;
+                    rest = plainSyl.slice(init.length);
+                    break;
+                }
+            }
+
+            if (!(rest in WUGNIU_FINALS_SINITIC)) return null;
+
+            const register = YANG_INITIALS.has(romInit) ? "yang" : "yin";
+            const checked = rest.endsWith("q");
+
+            let category;
+            if (register === "yin") category = checked ? 7 : 5;
+            else category = checked ? 8 : 6;
+
+            return { category, register, initial: romInit, checked };
+        }
+
+        const YIN_FORCING_INITIALS = new Set(["lh", "mh", "nh", "nk"]);
+
+        // `warning` here only ever covers position-independent anomalies (unparseable syllable,
+        // clear-sonorant spelling + checked final) — those are wrong regardless of where the
+        // syllable sits. Accent-vs-register mismatch is reported separately via `accentMismatch`,
+        // since a tone-1 mark only actually influences the sandhi result when its syllable's
+        // position is one the current mode/domain-length actually reads from; convertToneGroup
+        // decides, with that context, whether the mismatch is worth surfacing to the user.
+        function getSyllableToneInfo(rawSyl) {
+            const { plain, isTone1 } = stripAccentTone1(rawSyl);
+            const jtPlain = applyJiantuan(plain);
+            const derived = deriveToneCategory(jtPlain);
+
+            if (derived === null) {
+                return { rawSyl, plain: jtPlain, category: null, accentMismatch: false, warning: `弗認得箇音節：${rawSyl}` };
+            }
+
+            if (YIN_FORCING_INITIALS.has(derived.initial)) {
+                const warning = derived.checked
+                    ? `「${rawSyl}」聲母用清化拼式但韻母係入聲，組合異常，已按陰平處理`
+                    : null;
+                return { rawSyl, plain: jtPlain, category: 1, accentMismatch: false, warning };
+            }
+
+            if (isTone1) {
+                return { rawSyl, plain: jtPlain, category: 1, accentMismatch: derived.register === "yang", warning: null };
+            }
+
+            return { rawSyl, plain: jtPlain, category: derived.category, accentMismatch: false, warning: null };
+        }
+
+        // Whether a syllable at `idx` (0-based) of an `n`-syllable domain is a position whose
+        // own tone category actually feeds into the sandhi computation for the given `mode`.
+        // LPS only ever reads the first syllable's category; RPS reads the final syllable's
+        // (own citation contour) and the one immediately left of it (neutralisation lookup) —
+        // everything further left is a flat 33 regardless of its own tone.
+        function toneCategoryMattersAt(idx, n, mode) {
+            if (n <= 1) return true;
+            if (mode === "rps") return idx === n - 1 || idx === n - 2;
+            return idx === 0;
+        }
+
+        // --- Boundary marking (Wiktionary-style -/+/& notation) ---
+        // A simple global LPS/RPS switch can't express a sentence where only ONE join is
+        // right-prominent, so instead every gap between syllables is individually marked:
+        // "-" or plain whitespace = LPS join (the default), "+" = RPS join, and any other
+        // punctuation (typically "&", but any typed punctuation works) hard-breaks into a
+        // separate, independently-computed sandhi domain. This is parsed identically whether
+        // the character was typed raw or produced by clicking an inline widget (see below) —
+        // tokenizeToneInputFull walks the extracted canonical text once, producing an ordered
+        // token stream the converter consumes.
+        function isDomainBreakChar(ch) {
+            return /[\p{P}\p{S}]/u.test(ch) && ch !== "-" && ch !== "+";
+        }
+
+        function tokenizeToneInputFull(text) {
+            const tokens = [];
+            let i = 0, tok = "";
+            const flushSyl = () => { if (tok) { tokens.push({ type: "syl", text: tok }); tok = ""; } };
+            while (i < text.length) {
+                const ch = text[i];
+                if (ch === "\n") {
+                    // A newline is a hard break (separate line = separate sandhi domain), not
+                    // just another whitespace join — otherwise sandhi would silently chain
+                    // across line breaks the user clearly intended as separate.
+                    flushSyl();
+                    let run = "";
+                    while (i < text.length && text[i] === "\n") { run += text[i]; i++; }
+                    tokens.push({ type: "sep", text: run });
+                    continue;
+                }
+                if (/\s/u.test(ch)) {
+                    flushSyl();
+                    let run = "";
+                    while (i < text.length && /\s/u.test(text[i]) && text[i] !== "\n") { run += text[i]; i++; }
+                    tokens.push({ type: "boundary", kind: "lps", char: run });
+                    continue;
+                }
+                if (ch === "-" || ch === "+") {
+                    flushSyl();
+                    tokens.push({ type: "boundary", kind: ch === "+" ? "rps" : "lps", char: ch });
+                    i++;
+                    continue;
+                }
+                if (isDomainBreakChar(ch)) {
+                    flushSyl();
+                    let run = "";
+                    while (i < text.length && isDomainBreakChar(text[i])) { run += text[i]; i++; }
+                    tokens.push({ type: "sep", text: run });
+                    continue;
+                }
+                tok += ch;
+                i++;
+            }
+            flushSyl();
+            return tokens;
+        }
+
+        // Groups a flat token stream into sandhi domains (syllables + per-gap boundary kinds)
+        // plus the literal separator text that sat between each pair of domains, so the
+        // converter can reproduce user-typed punctuation verbatim in the output.
+        function tokensToDomains(tokens) {
+            const domains = [];
+            const seps = [];
+            let syllables = [], boundaries = [];
+            tokens.forEach(t => {
+                if (t.type === "syl") {
+                    syllables.push(t.text);
+                } else if (t.type === "boundary") {
+                    if (syllables.length > 0) boundaries.push(t.kind);
+                } else if (t.type === "sep") {
+                    if (syllables.length > 0) {
+                        boundaries.length = Math.max(0, syllables.length - 1);
+                        domains.push({ syllables, boundaries });
+                        seps.push(t.text);
+                        syllables = []; boundaries = [];
+                    } else if (seps.length > 0) {
+                        seps[seps.length - 1] += t.text;
+                    }
+                }
+            });
+            if (syllables.length > 0) {
+                boundaries.length = Math.max(0, syllables.length - 1);
+                domains.push({ syllables, boundaries });
+            }
+            return { domains, seps };
+        }
+
+        // --- Inline boundary widgets (live inside the contenteditable #input-tone) ---
+        // Rather than a separate row below the input, each -/+/& the user types is swapped
+        // in-place for a small clickable dot right where it was typed. Nested contenteditable
+        //="false" children inside a contenteditable="true" parent are treated as atomic units
+        // by the browser (arrow keys / backspace skip or delete them whole), so this stays
+        // robust to type through without a fragile full-content rebuild on every keystroke.
+        const BOUNDARY_GLYPH = { lps: "－", rps: "＋", break: "✕" };
+        const BOUNDARY_CHAR = { lps: " ", rps: "+", break: "&" };
+        const BOUNDARY_TITLE = {
+            lps: "左變調",
+            rps: "右變調",
+            break: "斷脫伊",
+        };
+        // Placeholder copy — swap these one-liners for the real explanations.
+        const BOUNDARY_DESC = {
+            lps: "一般性一隻詞裏向个變調",
+            rps: "動詞、介詞、連詞个特殊變調，後字重讀",
+            break: "覅變調，顯示原調，斷開詞組或者人名壓末一個字會得用",
+        };
+        const BOUNDARY_ORDER = ["lps", "rps", "break"];
+
+        function createBoundaryWidget(kind, char) {
+            const el = document.createElement("span");
+            el.contentEditable = "false";
+            el.setAttribute("role", "button");
+            el.tabIndex = 0;
+            el.className = "tb-inline-dot tb-" + kind;
+            el.dataset.kind = kind;
+            el.dataset.char = char;
+            el.textContent = BOUNDARY_GLYPH[kind];
+            el.title = BOUNDARY_TITLE[kind];
+            el.addEventListener("click", (e) => { e.stopPropagation(); showBoundaryPopup(el); });
+            el.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showBoundaryPopup(el); }
+            });
+            return el;
+        }
+
+        function setWidgetKind(el, kind) {
+            el.className = "tb-inline-dot tb-" + kind;
+            el.dataset.kind = kind;
+            el.dataset.char = BOUNDARY_CHAR[kind];
+            el.textContent = BOUNDARY_GLYPH[kind];
+            el.title = BOUNDARY_TITLE[kind];
+        }
+
+        // --- iOS-style popup menu for picking a boundary's sandhi type ---
+        let tbPopupEl = null;
+        let tbPopupTarget = null;
+
+        function closeBoundaryPopup() {
+            if (tbPopupEl) { tbPopupEl.remove(); tbPopupEl = null; }
+            tbPopupTarget = null;
+            document.removeEventListener("mousedown", onBoundaryPopupOutsideClick, true);
+            window.removeEventListener("scroll", closeBoundaryPopup, true);
+            window.removeEventListener("resize", closeBoundaryPopup);
+        }
+
+        function onBoundaryPopupOutsideClick(e) {
+            if (tbPopupEl && !tbPopupEl.contains(e.target)) closeBoundaryPopup();
+        }
+
+        function showBoundaryPopup(widgetEl) {
+            if (tbPopupEl && tbPopupTarget === widgetEl) { closeBoundaryPopup(); return; }
+            closeBoundaryPopup();
+            tbPopupTarget = widgetEl;
+
+            const menu = document.createElement("div");
+            menu.className = "tb-popup";
+
+            BOUNDARY_ORDER.forEach(kind => {
+                const opt = document.createElement("button");
+                opt.type = "button";
+                opt.className = "tb-popup-option";
+                if (kind === widgetEl.dataset.kind) opt.classList.add("tb-popup-current");
+                opt.innerHTML = `
+                    <span class="tb-popup-dot tb-${kind}">${BOUNDARY_GLYPH[kind]}</span>
+                    <span class="tb-popup-text">
+                        <span class="tb-popup-title">${BOUNDARY_TITLE[kind]}</span>
+                        <span class="tb-popup-desc">${BOUNDARY_DESC[kind]}</span>
+                    </span>
+                `;
+                opt.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    setWidgetKind(widgetEl, kind);
+                    closeBoundaryPopup();
+                    handleToneInputChanged();
+                });
+                menu.appendChild(opt);
+            });
+
+            document.body.appendChild(menu);
+            tbPopupEl = menu;
+
+            const r = widgetEl.getBoundingClientRect();
+            const menuRect = menu.getBoundingClientRect();
+            let top = r.bottom + 8;
+            if (top + menuRect.height > window.innerHeight) top = r.top - menuRect.height - 8;
+            let left = r.left + r.width / 2 - menuRect.width / 2;
+            left = Math.max(8, Math.min(left, window.innerWidth - menuRect.width - 8));
+            menu.style.top = top + "px";
+            menu.style.left = left + "px";
+
+            setTimeout(() => {
+                document.addEventListener("mousedown", onBoundaryPopupOutsideClick, true);
+                window.addEventListener("scroll", closeBoundaryPopup, true);
+                window.addEventListener("resize", closeBoundaryPopup);
+            }, 0);
+        }
+
+        // Reads the canonical text back out of the contenteditable: real text nodes contribute
+        // their characters verbatim, each inline widget contributes its data-char stand-in, and
+        // a <br> (what Enter now inserts, see defaultParagraphSeparator below) becomes "\n".
+        function extractToneInputText(el) {
+            let out = "";
+            el.childNodes.forEach(n => {
+                if (n.nodeType === 3) out += n.textContent;
+                else if (n.nodeName === "BR") out += "\n";
+                else if (n.classList && n.classList.contains("tb-inline-dot")) out += n.dataset.char;
+            });
+            return out;
+        }
+
+        function isWordChar(ch) {
+            return !!ch && /\p{L}/u.test(ch);
+        }
+
+        // Scans for the first text node containing a whitespace/"-"/"+" character that sits
+        // directly between two syllable letters (e.g. "lau|sy", "lau-|sy", "lau+|sy") and swaps
+        // just that character for an interactive widget ("+" starts as RPS, everything else as
+        // LPS), placing the caret immediately after it so typing continues forward naturally. A
+        // trigger character next to punctuation (e.g. "sy, |tsy" or a leading/trailing space) is
+        // deliberately left alone — it's already unambiguous as part of a hard break, and turning
+        // it into a clickable widget too would be redundant and confusing. Commas/other
+        // punctuation are never converted at all, regardless of position. Only the touched text
+        // node is split — the rest of the content, and the caret elsewhere, is left completely
+        // undisturbed. Deliberately only walks container's DIRECT children (never descends into
+        // a widget's own subtree) — a widget's displayed glyph (e.g. "－") is itself punctuation,
+        // so a deep walk would keep rediscovering it as a "new" trigger character forever.
+        function normalizeInlineBoundaries(container) {
+            const kids = Array.from(container.childNodes);
+            for (const node of kids) {
+                if (node.nodeType !== 3) continue;
+                const text = node.textContent;
+                let idx = -1;
+                for (let i = 0; i < text.length; i++) {
+                    const c = text[i];
+                    const isTrigger = (/\s/u.test(c) && c !== "\n") || c === "-" || c === "+";
+                    if (isTrigger && isWordChar(text[i - 1]) && isWordChar(text[i + 1])) {
+                        idx = i;
+                        break;
+                    }
+                }
+                if (idx === -1) continue;
+
+                // Capture the caret's offset within this exact text node (if it's currently
+                // inside it) *before* mutating, so it can be restored at the same logical spot
+                // relative to the split afterwards — not just dropped at the start of whatever
+                // follows, which put it BEFORE characters the user had already typed (e.g.
+                // typing "s" right after the trigger char would land as "sy" -> "ys").
+                let caretOffset = null;
+                const sel = window.getSelection && window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                    const r = sel.getRangeAt(0);
+                    if (r.collapsed && r.startContainer === node) caretOffset = r.startOffset;
+                }
+
+                const ch = text[idx];
+                const kind = ch === "+" ? "rps" : "lps";
+                const widget = createBoundaryWidget(kind, ch);
+                const before = text.slice(0, idx);
+                const after = text.slice(idx + 1);
+                const parent = node.parentNode;
+                const beforeNode = document.createTextNode(before);
+                parent.insertBefore(beforeNode, node);
+                parent.insertBefore(widget, node);
+                let afterNode = null;
+                if (after) {
+                    afterNode = document.createTextNode(after);
+                    parent.insertBefore(afterNode, node);
+                }
+                parent.removeChild(node);
+
+                if (sel) {
+                    const range = document.createRange();
+                    if (caretOffset !== null && caretOffset > idx) {
+                        const rel = caretOffset - (idx + 1);
+                        if (afterNode) range.setStart(afterNode, Math.min(rel, afterNode.textContent.length));
+                        else range.setStartAfter(widget);
+                    } else if (caretOffset !== null) {
+                        range.setStart(beforeNode, Math.min(caretOffset, beforeNode.textContent.length));
+                    } else if (afterNode) {
+                        range.setStart(afterNode, 0);
+                    } else {
+                        range.setStartAfter(widget);
+                    }
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        function handleToneInputChanged() {
+            if (!inputTone) return;
+            while (normalizeInlineBoundaries(inputTone)) { /* handle pasted multi-boundary text */ }
+            const text = extractToneInputText(inputTone).normalize("NFC");
+            inputTone.dataset.plain = text;
+            convertPhraseWithSandhi(text, "sinitic");
+            resizeAll();
+        }
+
+        function computeSandhiContours(categories) {
+            if (categories.length === 0 || categories.length > 5) return null;
+            if (categories.some(c => c === null)) return null;
+            const key = `${categories.length}${categories[0]}`;
+            const contour = SANDHI_TABLE[key];
+            if (!contour) return null;
+            return contour.split(" ");
+        }
+
+        function computeSandhiContoursRPS(categories) {
+            const n = categories.length;
+            if (n === 0) return null;
+            if (categories.some(c => c === null)) return null;
+            if (n === 1) {
+                const contour = SANDHI_TABLE[`1${categories[0]}`];
+                return contour ? [contour] : null;
+            }
+            const values = [];
+            for (let i = 0; i < n - 1; i++) {
+                values.push(i === n - 2 ? RPS_NEUTRAL[categories[i]] : RPS_MULTI);
+            }
+            const finalContour = SANDHI_TABLE[`1${categories[n - 1]}`];
+            if (!finalContour) return null;
+            values.push(finalContour);
+            return values;
+        }
+
+        function chaoToSuperscript(pair) {
+            return pair.split("").map(d => SUPERSCRIPT_DIGITS[d] || d).join("");
+        }
+
+        // Plain-text form (for the copy button) always uses real Unicode superscript
+        // characters so pasted text stays portable outside the page.
+        function toneMarkText(pair, useBar) {
+            return useBar ? toBars(pair) : chaoToSuperscript(pair);
+        }
+
+        // On-page HTML form: the tone-bar glyphs (˩˨˧˦˥) are IPA spacing-modifier letters that
+        // Gentium Book Plus renders natively, but the Unicode superscript digits (⁰¹²³⁴⁵) aren't
+        // covered by that font and silently fall back to a different system font whose glyphs
+        // have a much wider advance width — that's what was stretching the syllable box (and the
+        // curve drawn from its measured width) in digit mode only. A real <sup> around plain
+        // ASCII digits sidesteps the missing-glyph fallback entirely since every font has 0-9.
+        function toneMarkHtml(pair, useBar) {
+            return useBar ? toBars(pair) : `<sup>${pair}</sup>`;
+        }
+
+        function renderSyllableHTML(ipa, contour, useBar) {
+            const mark = contour ? toneMarkHtml(contour, useBar) : "";
+            const contourAttr = contour ? ` data-contour="${contour}"` : "";
+            return `<span class="syl-wrap"${contourAttr}><span class="syl-text">${ipa}${mark}</span></span>`;
+        }
+
+        // Draws ONE continuous pitch-contour line across all syllables that carry a
+        // data-contour attribute, measured from actual rendered layout (so it tracks real text
+        // width/wrapping) rather than one disconnected curve per syllable. Each syllable keeps
+        // its own contour as a straight (flat, for a level tone like "22"/"44") segment spanning
+        // its full width, and consecutive syllables are joined by a smooth eased curve across the
+        // gap between them — so e.g. "22 44" reads as flat-low, smooth climb, flat-high, rather
+        // than one blended wave that blurs the level portions. Syllables that wrap onto a
+        // different line start a new path segment instead of jumping across lines.
+        function buildToneCurveD(line) {
+            // Small on purpose: this whole band has to fit inside one line's own leading (the
+            // gap line-height adds above the glyphs), not spill upward into the previous line —
+            // a bigger band either overlaps the line above or forces line-height so tall the
+            // curve reads as floating far away from its syllable instead of sitting on it.
+            const CURVE_BAND = 5;
+            const digitToY = d => (5 - Number(d)) * (CURVE_BAND / 4.5); // 5=high(y~0) .. 1=low(y~CURVE_BAND)
+
+            let d = "";
+            let prevEnd = null;
+            line.forEach(w => {
+                const [d0, d1] = w.dataset.contour.split("");
+                const bandTop = w.offsetTop - CURVE_BAND + 1;
+                // Inset the flat segment so it doesn't stretch edge-to-edge across the whole
+                // syllable box (which is wider than the glyphs look, especially with a tone
+                // mark attached) — the transition curve absorbs the extra space instead.
+                const inset = Math.min(w.offsetWidth * 0.18, 7);
+                const xL = w.offsetLeft + inset, xR = w.offsetLeft + w.offsetWidth - inset;
+                const y0 = bandTop + digitToY(d0), y1 = bandTop + digitToY(d1);
+
+                if (prevEnd === null) {
+                    d += `M ${xL},${y0}`;
+                } else {
+                    const midX = (prevEnd.x + xL) / 2;
+                    d += ` C ${midX},${prevEnd.y} ${midX},${y0} ${xL},${y0}`;
+                }
+                d += ` L ${xR},${y1}`;
+                prevEnd = { x: xR, y: y1 };
+            });
+            return d;
+        }
+
+        function drawContinuousToneCurve(container) {
+            const oldOverlay = container.querySelector(".tone-curve-overlay");
+            if (oldOverlay) oldOverlay.remove();
+
+            // Group strictly within each sandhi domain (comma/punctuation-separated chain) first,
+            // then by visual line (offsetTop) inside that domain — a curve must never bridge two
+            // different sandhi groups, even if they happen to sit on the same rendered line.
+            const domainEls = Array.from(container.querySelectorAll(".tone-domain"));
+            const lines = [];
+            domainEls.forEach(domainEl => {
+                const wraps = Array.from(domainEl.querySelectorAll(".syl-wrap[data-contour]"));
+                let lastTop = null;
+                wraps.forEach(w => {
+                    const top = w.offsetTop;
+                    if (lastTop === null || Math.abs(top - lastTop) > 4) {
+                        lines.push([]);
+                        lastTop = top;
+                    }
+                    lines[lines.length - 1].push(w);
+                });
+            });
+            if (lines.length === 0) return;
+
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("class", "tone-curve-overlay");
+            svg.setAttribute("width", container.scrollWidth);
+            svg.setAttribute("height", container.scrollHeight);
+
+            lines.forEach(line => {
+                if (line.length === 0) return;
+                const path = document.createElementNS(svgNS, "path");
+                path.setAttribute("class", "tone-curve-path");
+                path.setAttribute("d", buildToneCurveD(line));
+                svg.appendChild(path);
+            });
+
+            container.insertBefore(svg, container.firstChild);
+        }
+
+        function convertToneGroup(syllables, variant, mode, useBar) {
+            const infos = syllables.map(getSyllableToneInfo);
+            const warnings = infos.filter(i => i.warning).map(i => i.warning);
+            infos.forEach((info, idx) => {
+                if (info.accentMismatch && toneCategoryMattersAt(idx, syllables.length, mode)) {
+                    warnings.push(`「${info.rawSyl}」聲母濁，但標仔陰平調，已按陰平處理`);
+                }
+            });
+            const categories = infos.map(i => i.category);
+
+            // Lexical exceptions (e.g. 弗/veq) only apply once the syllable is "in flow"
+            // (part of a multi-syllable domain) — a lone syllable keeps its citation category.
+            const sandhiCategories = categories.map((cat, idx) => {
+                if (syllables.length <= 1 || cat === null) return cat;
+                const override = TONE_FLOW_EXCEPTIONS[infos[idx].plain];
+                return override !== undefined ? override : cat;
+            });
+
+            const contours = mode === "rps"
+                ? computeSandhiContoursRPS(sandhiCategories)
+                : computeSandhiContours(sandhiCategories);
+
+            const htmlParts = infos.map((info, idx) => {
+                const ipa = wugniuToIpaCore(info.plain, variant);
+                return renderSyllableHTML(ipa, contours ? contours[idx] : null, useBar);
+            });
+
+            const plainParts = infos.map((info, idx) => {
+                const ipa = wugniuToIpaCore(info.plain, variant);
+                return contours ? ipa + toneMarkText(contours[idx], useBar) : ipa;
+            });
+
+            if (!contours) {
+                if (mode === "lps" && syllables.length > 5) {
+                    warnings.push(`詞組超過5個音節（共${syllables.length}個），左起變調弗支持`);
+                } else if (categories.every(c => c !== null)) {
+                    warnings.push(`查弗着變調表（${syllables.length}音節，首字調類${categories[0]}）`);
+                }
+            }
+
+            return { html: htmlParts.join(" "), plain: plainParts.join(" "), warnings };
+        }
+
+        function convertPhraseWithSandhi(text, variant) {
+            const outputBox = document.getElementById("output-tone");
+            const warningsBox = document.getElementById("tone-warnings");
+            if (!outputBox) return;
+
+            const toneBarSwitch = document.getElementById("tone-bar-switch");
+            const useBar = !!(toneBarSwitch && toneBarSwitch.checked);
+
+            text = text.normalize("NFC").trim();
+            if (!text) {
+                outputBox.innerHTML = "";
+                outputBox.dataset.plain = "";
+                if (warningsBox) warningsBox.textContent = "";
+                return;
+            }
+
+            // Per-boundary marking (see tokenizeToneInputFull): "-"/space = LPS join, "+" = RPS
+            // join, anything else (typically "&") hard-breaks into a separate domain. A domain's
+            // mode is RPS if ANY of its internal boundaries was marked "+", else LPS — this lets
+            // a single sentence mix left- and right-prominent sandhi at different points instead
+            // of being stuck with one global mode for the whole input.
+            const tokens = tokenizeToneInputFull(text);
+            const { domains, seps } = tokensToDomains(tokens);
+            let outHtml = "";
+            let outPlain = "";
+            let allWarnings = [];
+
+            domains.forEach((dom, i) => {
+                if (dom.syllables.length > 0) {
+                    const mode = dom.boundaries.includes("rps") ? "rps" : "lps";
+                    const { html, plain, warnings } = convertToneGroup(dom.syllables, variant, mode, useBar);
+                    outHtml += `<span class="tone-domain">${html}</span>`;
+                    outPlain += plain;
+                    allWarnings = allWarnings.concat(warnings);
+                }
+                if (i < seps.length) {
+                    // "&" is our own internal "hard break" notation (what the boundary widget's
+                    // 斷開 option writes) — it's not something the user typed as real
+                    // orthography, so don't surface it in the rendered IPA; just leave a space.
+                    // Any other separator (comma, newline, etc., typed by the user) is preserved.
+                    const displaySep = /^&+$/.test(seps[i]) ? " " : seps[i];
+                    outHtml += displaySep;
+                    outPlain += displaySep;
+                }
+            });
+
+            outputBox.innerHTML = outHtml;
+            outputBox.dataset.plain = outPlain;
+            drawContinuousToneCurve(outputBox);
+            // The IPA text uses a webfont (Gentium Book Plus); if it's still loading when we
+            // first measure syllable widths, the curve is built from fallback-font metrics and
+            // visibly mismatches once the real font swaps in. Redraw once it's actually ready.
+            if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+                document.fonts.ready.then(() => drawContinuousToneCurve(outputBox)).catch(() => {});
+            }
+            if (warningsBox) warningsBox.textContent = allWarnings.join("；");
+        }
 
         function applyJiantuan(wugniu) {
             let jtSwitch = document.getElementById('jiantuan-switch');
@@ -561,6 +1440,12 @@
         const copyBtnBroad = document.getElementById("copy-btn-broad");
         const copyBtnWugniu = document.getElementById("copy-btn-wugniu");
 
+        const inputTone = document.getElementById("input-tone");
+        inputTone.dataset.plain = "";
+        const outputTone = document.getElementById("output-tone");
+        const copyBtnToneIn = document.getElementById("copy-btn-tone-in");
+        const copyBtnToneOut = document.getElementById("copy-btn-tone-out");
+
         let isSyncing = false; // Flag to prevent infinite sync loops
 
         function autoResize(el) {
@@ -574,6 +1459,8 @@
             autoResize(inputSinitic);
             autoResize(inputBroad);
             autoResize(inputWugniu);
+            autoResize(inputTone);
+            if (outputTone) drawContinuousToneCurve(outputTone);
         }
 
         inputSinitic.addEventListener("input", (e) => {
@@ -605,11 +1492,25 @@
             isSyncing = false;
         });
 
+        inputTone.addEventListener("input", () => {
+            handleToneInputChanged();
+        });
+
+        // Enter support: rather than manually intercepting the keystroke and re-implementing
+        // caret placement with Range/Selection math (which kept landing the caret one step off —
+        // "press twice" / typing jumping to the line above), just let the browser's own native
+        // Enter handling do it, which manages the caret correctly on its own. The only thing we
+        // configure is *which tag* it uses for the break: browsers default to wrapping the new
+        // line in a fresh <div>, which extractToneInputText can't see into; asking for <br>
+        // instead keeps the content flat, and extractToneInputText below reads a <br> as "\n".
+        try { document.execCommand("defaultParagraphSeparator", false, "br"); } catch (e) { /* unsupported: rare, harmless */ }
+
         window.addEventListener('resize', resizeAll);
 
         function setupCopyBtn(btn, box) {
             btn.addEventListener("click", () => {
-                navigator.clipboard.writeText(box.value).then(() => {
+                const text = box.dataset && box.dataset.plain !== undefined ? box.dataset.plain : box.value;
+                navigator.clipboard.writeText(text).then(() => {
                     btn.classList.add("success");
 
                     setTimeout(() => {
@@ -622,6 +1523,8 @@
         setupCopyBtn(copyBtnSinitic, inputSinitic);
         setupCopyBtn(copyBtnBroad, inputBroad);
         setupCopyBtn(copyBtnWugniu, inputWugniu);
+        setupCopyBtn(copyBtnToneIn, inputTone);
+        setupCopyBtn(copyBtnToneOut, outputTone);
 
         // Resize textareas on load
         window.onload = () => {
