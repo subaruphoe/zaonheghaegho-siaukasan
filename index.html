@@ -217,8 +217,9 @@
         }
 
         .tb-inline-dot.tb-lps {
-            color: var(--focus-color);
-            background: rgba(0, 122, 255, 0.14);
+            /* Muted: LPS is the default boundary, kept quieter than tb-rps/tb-break. */
+            color: var(--text-muted);
+            background: rgba(134, 134, 139, 0.12);
         }
 
         .tb-inline-dot.tb-rps {
@@ -230,6 +231,45 @@
             color: #ff3b30;
             background: rgba(255, 59, 48, 0.14);
             margin: 0 4px;
+        }
+
+        /* Chinese-character chip. Corner markers flag the notable states: tb-tone1 (tone 1
+           applied) and tb-multi (more than one reading). */
+        .tb-char-chip {
+            display: inline-block;
+            padding: 0 3px;
+            margin: 0 1px;
+            border-radius: 6px;
+            cursor: pointer;
+            background: rgba(134, 134, 139, 0.10);
+            position: relative;
+            transition: background 0.1s ease-out;
+        }
+
+        .tb-char-chip:hover {
+            background: rgba(134, 134, 139, 0.18);
+        }
+
+        .tb-char-chip.tb-tone1::after {
+            content: "";
+            position: absolute;
+            right: 1px;
+            bottom: 1px;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--focus-color);
+        }
+
+        .tb-char-chip.tb-multi::before {
+            content: "";
+            position: absolute;
+            left: 1px;
+            bottom: 1px;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: rgba(255, 149, 0, 0.55);
         }
 
         /* iOS-style popup menu for choosing a boundary's sandhi type */
@@ -286,9 +326,18 @@
             font-weight: 700;
         }
 
-        .tb-popup-dot.tb-lps { color: var(--focus-color); background: rgba(0, 122, 255, 0.14); }
+        .tb-popup-dot.tb-lps { color: var(--text-muted); background: rgba(134, 134, 139, 0.12); }
         .tb-popup-dot.tb-rps { color: #ff9500; background: rgba(255, 149, 0, 0.16); }
         .tb-popup-dot.tb-break { color: #ff3b30; background: rgba(255, 59, 48, 0.14); }
+        .tb-popup-dot.tb-multi { color: #ff9500; background: rgba(255, 149, 0, 0.14); font-size: 11px; }
+        .tb-popup-dot.tb-tone1 { color: var(--focus-color); background: rgba(0, 122, 255, 0.14); }
+
+        .tb-popup-header {
+            padding: 6px 10px 4px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
 
         .tb-popup-text {
             display: flex;
@@ -506,7 +555,7 @@
                     <span>拼音</span>
                 </div>
                 <div id="input-tone" class="tone-input" contenteditable="true"
-                    data-placeholder="箇𡍲打拼音，空格分字，撳一記「-」符號好揀變調規則"></div>
+                    data-placeholder="箇𡍲打拼音抑或漢字，空格分字，撳一記邊界符號好揀變調規則"></div>
                 <button class="copy-btn" id="copy-btn-tone-in"><span class="text-default">拷貝</span><span
                         class="text-success">✓</span></button>
             </div>
@@ -519,12 +568,19 @@
                         class="text-success">✓</span></button>
             </div>
         </div>
-        <div style="text-align: center;">
+        <div style="text-align: center; display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;">
             <label class="switch-container">
                 <span>五度標記</span>
                 <div class="ios-switch">
                     <input type="checkbox" id="tone-bar-switch"
                         onchange="document.getElementById('input-tone').dispatchEvent(new Event('input'));">
+                    <span class="slider"></span>
+                </div>
+            </label>
+            <label class="switch-container">
+                <span>弗分尖團</span>
+                <div class="ios-switch">
+                    <input type="checkbox" id="tone-tsiedoe-switch" checked onchange="onToneTsiedoeChange();">
                     <span class="slider"></span>
                 </div>
             </label>
@@ -542,8 +598,8 @@
             <label class="switch-container">
                 <span>弗分尖團</span>
                 <div class="ios-switch">
-                    <input type="checkbox" id="jiantuan-switch" checked
-                        onchange="document.getElementById('lookup-input').dispatchEvent(new Event('input')); document.getElementById('input-wugniu').dispatchEvent(new Event('input')); document.getElementById('input-sinitic').dispatchEvent(new Event('input')); document.getElementById('input-broad').dispatchEvent(new Event('input')); document.getElementById('input-tone').dispatchEvent(new Event('input'));">
+                    <input type="checkbox" id="tsiedoe-switch" checked
+                        onchange="onMainTsiedoeChange();">
                     <span class="slider"></span>
                 </div>
             </label>
@@ -553,6 +609,7 @@
     </div>
 
     <script src="dict.js"></script>
+    <script src="mandarin_tone1.js"></script>
     <script>
 
         function lookupWord(word) {
@@ -637,6 +694,7 @@
         // --- Tone Sandhi Tool ---
 
         const DEACCENT_MAP = { "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ý": "y" };
+        const ACCENT_MAP = Object.fromEntries(Object.entries(DEACCENT_MAP).map(([acc, plain]) => [plain, acc]));
 
         const YIN_INITIALS = new Set(["p", "ph", "f", "t", "th", "ts", "tsh", "c", "ch", "k", "kh", "s", "sh", "h", "mh", "nh", "nk", "lh"]);
         const YANG_INITIALS = new Set(["b", "d", "v", "z", "j", "zh", "g", "gh", "gn", "m", "n", "l", "ng"]);
@@ -684,17 +742,37 @@
             return { plain, isTone1 };
         }
 
+        // Wugniu writes the initial ɦ (gh) before i/u as a bare y-/w-: yi=ghi, ya=ghia, wu=ghu,
+        // wa=ghua, yon=ghion. Shared by the IPA converter and the tone deriver so both expand
+        // these the same way (otherwise a valid syllable like yi/wa derives no tone).
+        function unsimplifyGlides(rom) {
+            if (rom.startsWith("yi")) {
+                const suffix = rom.slice(2);
+                if (suffix === "" || suffix.startsWith("n") || suffix.startsWith("q")) return "ghi" + suffix;
+                return rom;
+            }
+            if (rom.startsWith("y")) return "ghi" + rom.slice(1);
+            if (rom.startsWith("wu")) {
+                const suffix = rom.slice(2);
+                if (suffix === "") return "ghu";
+                return rom;
+            }
+            if (rom.startsWith("w")) return "ghu" + rom.slice(1);
+            return rom;
+        }
+
         function deriveToneCategory(plainSyl) {
             if (plainSyl === "m") return { category: 6, register: "yang", initial: "", checked: false };
             if (plainSyl === "ng") return { category: 6, register: "yang", initial: "", checked: false };
 
+            const rom = unsimplifyGlides(plainSyl);
             let romInit = "";
-            let rest = plainSyl;
+            let rest = rom;
 
             for (let init of wInits) {
-                if (plainSyl.startsWith(init)) {
+                if (rom.startsWith(init)) {
                     romInit = init;
-                    rest = plainSyl.slice(init.length);
+                    rest = rom.slice(init.length);
                     break;
                 }
             }
@@ -713,55 +791,66 @@
 
         const YIN_FORCING_INITIALS = new Set(["lh", "mh", "nh", "nk"]);
 
-        // `warning` here only ever covers position-independent anomalies (unparseable syllable,
-        // clear-sonorant spelling + checked final) — those are wrong regardless of where the
-        // syllable sits. Accent-vs-register mismatch is reported separately via `accentMismatch`,
-        // since a tone-1 mark only actually influences the sandhi result when its syllable's
-        // position is one the current mode/domain-length actually reads from; convertToneGroup
-        // decides, with that context, whether the mismatch is worth surfacing to the user.
+        // `warning` is set only when the syllable's spelling can't be parsed, so no tone can be
+        // derived. category is 1-8, or null when unparseable.
         function getSyllableToneInfo(rawSyl) {
             const { plain, isTone1 } = stripAccentTone1(rawSyl);
-            const jtPlain = applyJiantuan(plain);
+            const jtPlain = applyTsiedoe(plain, 'tone-tsiedoe-switch');
             const derived = deriveToneCategory(jtPlain);
 
             if (derived === null) {
-                return { rawSyl, plain: jtPlain, category: null, accentMismatch: false, warning: `弗認得箇音節：${rawSyl}` };
+                return { rawSyl, plain: jtPlain, category: null, warning: `「${rawSyl}」拼法生疏，聲調算弗出` };
             }
 
             if (YIN_FORCING_INITIALS.has(derived.initial)) {
-                const warning = derived.checked
-                    ? `「${rawSyl}」聲母用清化拼式但韻母係入聲，組合異常，已按陰平處理`
-                    : null;
-                return { rawSyl, plain: jtPlain, category: 1, accentMismatch: false, warning };
+                return { rawSyl, plain: jtPlain, category: 1, warning: null };
             }
 
             if (isTone1) {
-                return { rawSyl, plain: jtPlain, category: 1, accentMismatch: derived.register === "yang", warning: null };
+                return { rawSyl, plain: jtPlain, category: 1, warning: null };
             }
 
-            return { rawSyl, plain: jtPlain, category: derived.category, accentMismatch: false, warning: null };
+            return { rawSyl, plain: jtPlain, category: derived.category, warning: null };
         }
 
-        // Whether a syllable at `idx` (0-based) of an `n`-syllable domain is a position whose
-        // own tone category actually feeds into the sandhi computation for the given `mode`.
-        // LPS only ever reads the first syllable's category; RPS reads the final syllable's
-        // (own citation contour) and the one immediately left of it (neutralisation lookup) —
-        // everything further left is a flat 33 regardless of its own tone.
-        function toneCategoryMattersAt(idx, n, mode) {
-            if (n <= 1) return true;
-            if (mode === "rps") return idx === n - 1 || idx === n - 2;
-            return idx === 0;
+        // Marks a plain wugniu syllable as tone 1 by accenting the first accentable letter of
+        // the final (inverse of stripAccentTone1, which strips any accent regardless of position).
+        function applyTone1Accent(plainSyl) {
+            let rest = plainSyl;
+            for (const init of wInits) {
+                if (plainSyl.startsWith(init)) { rest = plainSyl.slice(init.length); break; }
+            }
+            const initial = plainSyl.slice(0, plainSyl.length - rest.length);
+            for (let i = 0; i < rest.length; i++) {
+                if (ACCENT_MAP[rest[i]]) {
+                    return initial + rest.slice(0, i) + ACCENT_MAP[rest[i]] + rest.slice(i + 1);
+                }
+            }
+            return plainSyl; // no accentable vowel found (shouldn't happen for a real final)
+        }
+
+        // Looks up a Chinese character's pronunciation(s) and whether it's a tone-1 candidate.
+        // Returns null if the character isn't in WUGNIU_DICT (callers keep it as literal text).
+        function resolveHanCharacter(han) {
+            let trad = han;
+            if (!WUGNIU_DICT[han] && SIMP_MAP[han]) trad = SIMP_MAP[han];
+            const data = WUGNIU_DICT[trad];
+            if (!data) return null;
+
+            const pronunciations = data.p.map((p, i) => ({ wugniu: p, weight: data.pw[i] }));
+            let defaultIndex = 0;
+            for (let i = 1; i < pronunciations.length; i++) {
+                if (pronunciations[i].weight > pronunciations[defaultIndex].weight) defaultIndex = i;
+            }
+            const guessedTone1 = (typeof MANDARIN_YINPING_CHARS !== "undefined") && !!MANDARIN_YINPING_CHARS &&
+                (MANDARIN_YINPING_CHARS.has(han) || MANDARIN_YINPING_CHARS.has(trad) || MANDARIN_YINPING_CHARS.has(data.s));
+
+            return { han, trad, simp: data.s, pronunciations, defaultIndex, guessedTone1 };
         }
 
         // --- Boundary marking (Wiktionary-style -/+/& notation) ---
-        // A simple global LPS/RPS switch can't express a sentence where only ONE join is
-        // right-prominent, so instead every gap between syllables is individually marked:
-        // "-" or plain whitespace = LPS join (the default), "+" = RPS join, and any other
-        // punctuation (typically "&", but any typed punctuation works) hard-breaks into a
-        // separate, independently-computed sandhi domain. This is parsed identically whether
-        // the character was typed raw or produced by clicking an inline widget (see below) —
-        // tokenizeToneInputFull walks the extracted canonical text once, producing an ordered
-        // token stream the converter consumes.
+        // Each gap between syllables is marked individually: "-" or whitespace = LPS join,
+        // "+" = RPS join, any other punctuation = hard break into a separate sandhi domain.
         function isDomainBreakChar(ch) {
             return /[\p{P}\p{S}]/u.test(ch) && ch !== "-" && ch !== "+";
         }
@@ -809,9 +898,8 @@
             return tokens;
         }
 
-        // Groups a flat token stream into sandhi domains (syllables + per-gap boundary kinds)
-        // plus the literal separator text that sat between each pair of domains, so the
-        // converter can reproduce user-typed punctuation verbatim in the output.
+        // Groups the token stream into sandhi domains (syllables + per-gap boundary kinds), plus
+        // the literal separator text between each pair of domains (kept for verbatim output).
         function tokensToDomains(tokens) {
             const domains = [];
             const seps = [];
@@ -840,11 +928,9 @@
         }
 
         // --- Inline boundary widgets (live inside the contenteditable #input-tone) ---
-        // Rather than a separate row below the input, each -/+/& the user types is swapped
-        // in-place for a small clickable dot right where it was typed. Nested contenteditable
-        //="false" children inside a contenteditable="true" parent are treated as atomic units
-        // by the browser (arrow keys / backspace skip or delete them whole), so this stays
-        // robust to type through without a fragile full-content rebuild on every keystroke.
+        // Each -/+/space the user types is swapped in-place for a small clickable dot. The dots
+        // are contenteditable="false" spans, so the browser treats them as atomic (arrow keys and
+        // backspace skip or delete them whole).
         const BOUNDARY_GLYPH = { lps: "－", rps: "＋", break: "✕" };
         const BOUNDARY_CHAR = { lps: " ", rps: "+", break: "&" };
         const BOUNDARY_TITLE = {
@@ -852,11 +938,11 @@
             rps: "右變調",
             break: "斷脫伊",
         };
-        // Placeholder copy — swap these one-liners for the real explanations.
+        // Short explanation shown under each option in the popup menu.
         const BOUNDARY_DESC = {
             lps: "一般性一隻詞裏向个變調",
             rps: "動詞、介詞、連詞个特殊變調，後字重讀",
-            break: "覅變調，顯示原調，斷開詞組或者人名壓末一個字會得用",
+            break: "覅變調，或者斷開詞組，有辰光人名壓末一個字會得用",
         };
         const BOUNDARY_ORDER = ["lps", "rps", "break"];
 
@@ -885,55 +971,39 @@
             el.title = BOUNDARY_TITLE[kind];
         }
 
-        // --- iOS-style popup menu for picking a boundary's sandhi type ---
-        let tbPopupEl = null;
-        let tbPopupTarget = null;
+        // --- iOS-style popup menu, shared by boundary widgets and char-chips ---
+        // One shared open/close state, so only one popup is on screen at a time.
+        let activePopupEl = null;
+        let activePopupTarget = null;
 
-        function closeBoundaryPopup() {
-            if (tbPopupEl) { tbPopupEl.remove(); tbPopupEl = null; }
-            tbPopupTarget = null;
-            document.removeEventListener("mousedown", onBoundaryPopupOutsideClick, true);
-            window.removeEventListener("scroll", closeBoundaryPopup, true);
-            window.removeEventListener("resize", closeBoundaryPopup);
+        function closeActivePopup() {
+            if (activePopupEl) { activePopupEl.remove(); activePopupEl = null; }
+            activePopupTarget = null;
+            document.removeEventListener("mousedown", onActivePopupOutsideClick, true);
+            window.removeEventListener("scroll", closeActivePopup, true);
+            window.removeEventListener("resize", closeActivePopup);
         }
 
-        function onBoundaryPopupOutsideClick(e) {
-            if (tbPopupEl && !tbPopupEl.contains(e.target)) closeBoundaryPopup();
+        function onActivePopupOutsideClick(e) {
+            if (activePopupEl && !activePopupEl.contains(e.target)) closeActivePopup();
         }
 
-        function showBoundaryPopup(widgetEl) {
-            if (tbPopupEl && tbPopupTarget === widgetEl) { closeBoundaryPopup(); return; }
-            closeBoundaryPopup();
-            tbPopupTarget = widgetEl;
+        // buildContentFn(menu) appends the caller's rows to a fresh .tb-popup div. Handles
+        // toggle-close on repeat click, positioning (flips above the anchor when there's no room
+        // below, clamped to the viewport), and outside-click/scroll/resize dismissal.
+        function openPopupMenu(anchorEl, buildContentFn) {
+            if (activePopupEl && activePopupTarget === anchorEl) { closeActivePopup(); return; }
+            closeActivePopup();
+            activePopupTarget = anchorEl;
 
             const menu = document.createElement("div");
             menu.className = "tb-popup";
-
-            BOUNDARY_ORDER.forEach(kind => {
-                const opt = document.createElement("button");
-                opt.type = "button";
-                opt.className = "tb-popup-option";
-                if (kind === widgetEl.dataset.kind) opt.classList.add("tb-popup-current");
-                opt.innerHTML = `
-                    <span class="tb-popup-dot tb-${kind}">${BOUNDARY_GLYPH[kind]}</span>
-                    <span class="tb-popup-text">
-                        <span class="tb-popup-title">${BOUNDARY_TITLE[kind]}</span>
-                        <span class="tb-popup-desc">${BOUNDARY_DESC[kind]}</span>
-                    </span>
-                `;
-                opt.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    setWidgetKind(widgetEl, kind);
-                    closeBoundaryPopup();
-                    handleToneInputChanged();
-                });
-                menu.appendChild(opt);
-            });
+            buildContentFn(menu);
 
             document.body.appendChild(menu);
-            tbPopupEl = menu;
+            activePopupEl = menu;
 
-            const r = widgetEl.getBoundingClientRect();
+            const r = anchorEl.getBoundingClientRect();
             const menuRect = menu.getBoundingClientRect();
             let top = r.bottom + 8;
             if (top + menuRect.height > window.innerHeight) top = r.top - menuRect.height - 8;
@@ -943,10 +1013,99 @@
             menu.style.left = left + "px";
 
             setTimeout(() => {
-                document.addEventListener("mousedown", onBoundaryPopupOutsideClick, true);
-                window.addEventListener("scroll", closeBoundaryPopup, true);
-                window.addEventListener("resize", closeBoundaryPopup);
+                document.addEventListener("mousedown", onActivePopupOutsideClick, true);
+                window.addEventListener("scroll", closeActivePopup, true);
+                window.addEventListener("resize", closeActivePopup);
             }, 0);
+        }
+
+        function showBoundaryPopup(widgetEl) {
+            openPopupMenu(widgetEl, (menu) => {
+                BOUNDARY_ORDER.forEach(kind => {
+                    const opt = document.createElement("button");
+                    opt.type = "button";
+                    opt.className = "tb-popup-option";
+                    if (kind === widgetEl.dataset.kind) opt.classList.add("tb-popup-current");
+                    opt.innerHTML = `
+                        <span class="tb-popup-dot tb-${kind}">${BOUNDARY_GLYPH[kind]}</span>
+                        <span class="tb-popup-text">
+                            <span class="tb-popup-title">${BOUNDARY_TITLE[kind]}</span>
+                            <span class="tb-popup-desc">${BOUNDARY_DESC[kind]}</span>
+                        </span>
+                    `;
+                    opt.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        setWidgetKind(widgetEl, kind);
+                        closeActivePopup();
+                        handleToneInputChanged();
+                    });
+                    menu.appendChild(opt);
+                });
+            });
+        }
+
+        function showCharChipPopup(el) {
+            openPopupMenu(el, (menu) => {
+                const resolution = resolveHanCharacter(el.dataset.han);
+                if (!resolution) return;
+
+                const header = document.createElement("div");
+                header.className = "tb-popup-header";
+                header.textContent = resolution.simp && resolution.simp !== resolution.han
+                    ? `${resolution.han}／${resolution.simp}`
+                    : resolution.han;
+                menu.appendChild(header);
+
+                if (resolution.pronunciations.length > 1) {
+                    resolution.pronunciations.forEach((pron, i) => {
+                        const opt = document.createElement("button");
+                        opt.type = "button";
+                        opt.className = "tb-popup-option";
+                        if (i === +el.dataset.pronIndex) opt.classList.add("tb-popup-current");
+                        opt.innerHTML = `
+                            <span class="tb-popup-dot tb-multi">${i + 1}</span>
+                            <span class="tb-popup-text">
+                                <span class="tb-popup-title">${pron.wugniu}</span>
+                                <span class="tb-popup-desc">${pron.weight}%</span>
+                            </span>
+                        `;
+                        opt.addEventListener("click", (e) => {
+                            e.stopPropagation();
+                            el.dataset.pronIndex = String(i);
+                            updateCharChipDisplay(el);
+                            closeActivePopup();
+                            handleToneInputChanged();
+                        });
+                        menu.appendChild(opt);
+                    });
+                }
+
+                const tone1Active = el.dataset.tone1Active === "true";
+                [
+                    { active: true, title: "陰平", desc: tone1Active && resolution.guessedTone1 ? "推導出个陰平" : "手動標記" },
+                    { active: false, title: "照調類推算", desc: "弗標陰平，拿聲母／韻母規則推算" },
+                ].forEach(row => {
+                    const opt = document.createElement("button");
+                    opt.type = "button";
+                    opt.className = "tb-popup-option";
+                    if (row.active === tone1Active) opt.classList.add("tb-popup-current");
+                    opt.innerHTML = `
+                        <span class="tb-popup-dot tb-${row.active ? "tone1" : "lps"}">${row.active ? "陰" : "－"}</span>
+                        <span class="tb-popup-text">
+                            <span class="tb-popup-title">${row.title}</span>
+                            <span class="tb-popup-desc">${row.desc}</span>
+                        </span>
+                    `;
+                    opt.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        el.dataset.tone1Active = String(row.active);
+                        updateCharChipDisplay(el);
+                        closeActivePopup();
+                        handleToneInputChanged();
+                    });
+                    menu.appendChild(opt);
+                });
+            });
         }
 
         // Reads the canonical text back out of the contenteditable: real text nodes contribute
@@ -955,9 +1114,10 @@
         function extractToneInputText(el) {
             let out = "";
             el.childNodes.forEach(n => {
-                if (n.nodeType === 3) out += n.textContent;
+                if (n.nodeType === 3) out += n.textContent.replace(/\u200B/g, ""); // strip caret anchors
                 else if (n.nodeName === "BR") out += "\n";
                 else if (n.classList && n.classList.contains("tb-inline-dot")) out += n.dataset.char;
+                else if (n.classList && n.classList.contains("tb-char-chip")) out += n.dataset.char;
             });
             return out;
         }
@@ -966,39 +1126,93 @@
             return !!ch && /\p{L}/u.test(ch);
         }
 
-        // Scans for the first text node containing a whitespace/"-"/"+" character that sits
-        // directly between two syllable letters (e.g. "lau|sy", "lau-|sy", "lau+|sy") and swaps
-        // just that character for an interactive widget ("+" starts as RPS, everything else as
-        // LPS), placing the caret immediately after it so typing continues forward naturally. A
-        // trigger character next to punctuation (e.g. "sy, |tsy" or a leading/trailing space) is
-        // deliberately left alone — it's already unambiguous as part of a hard break, and turning
-        // it into a clickable widget too would be redundant and confusing. Commas/other
-        // punctuation are never converted at all, regardless of position. Only the touched text
-        // node is split — the rest of the content, and the caret elsewhere, is left completely
-        // undisturbed. Deliberately only walks container's DIRECT children (never descends into
-        // a widget's own subtree) — a widget's displayed glyph (e.g. "－") is itself punctuation,
-        // so a deep walk would keep rediscovering it as a "new" trigger character forever.
+        // A node counts as "word-like" on its own if it's an atomic widget (contenteditable
+        // false — a boundary dot or a char-chip), since those stand in for real syllable text.
+        function isWidgetNode(n) {
+            return !!n && n.nodeType === 1 && n.getAttribute && n.getAttribute("contenteditable") === "false";
+        }
+
+        // --- Blank text nodes ---
+        // A caret can sit between two adjacent widgets using a plain container+offset position
+        // (Range.setStart on the parent, not on any text node), which the browser supports
+        // natively for click and arrow-key navigation \u2014 no anchor character is needed there. A
+        // zero-width space was tried as an explicit anchor for this, but it backfired: any real
+        // character, however invisible, is still its own stop for arrow-key navigation (one press
+        // to enter, one to leave), and deleting a widget left its flanking anchors behind as
+        // stray stops. isBlankTextNode/ZWSP are kept only to recognise and clean up any such
+        // empty/zero-width text node that a browser edit happens to leave behind.
+        const ZWSP = "\u200B";
+
+        function isBlankTextNode(n) {
+            return !!n && n.nodeType === 3 && n.textContent.replace(/\u200B/g, "") === "";
+        }
+
+        // Removes any blank/zero-width text nodes left in the container (from browser edits, or
+        // from before this was a strip-only pass). Returns true if it removed anything.
+        function stripBlankTextNodes(container) {
+            let changed = false;
+            Array.from(container.childNodes).forEach(n => {
+                if (isBlankTextNode(n)) { container.removeChild(n); changed = true; }
+            });
+            return changed;
+        }
+
+        // Places the caret just after `node`, past one leading space in the following text node
+        // so continued typing starts the next syllable.
+        function placeCaretAfterNode(node) {
+            const sel = window.getSelection && window.getSelection();
+            if (!sel || !node) return;
+            const range = document.createRange();
+            const next = node.nextSibling;
+            if (next && next.nodeType === 3) {
+                const lead = next.textContent.startsWith(" ") ? 1 : 0;
+                range.setStart(next, lead);
+            } else {
+                range.setStartAfter(node);
+            }
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+
+        // Swaps the first space/"-"/"+" that sits between two syllables (letters or widgets) for
+        // a boundary widget ("+" starts as RPS, else LPS). A trigger next to punctuation, or at
+        // the start/end of the input, is left as-is. Only walks the container's direct children,
+        // not into widgets (their glyphs are punctuation and would re-trigger endlessly).
         function normalizeInlineBoundaries(container) {
             const kids = Array.from(container.childNodes);
             for (const node of kids) {
                 if (node.nodeType !== 3) continue;
                 const text = node.textContent;
+                // A trigger at the start/end of the text node has no in-string neighbour; the
+                // sibling on that side counts as a syllable if it's a widget or a text node whose
+                // adjacent char is a letter. The text-node case lets a deleted dash be recovered:
+                // the two syllables are left as separate adjacent text nodes, so a space typed at
+                // the join still sees the next node's letter and turns back into a dash.
+                const neighbourWordLike = (sib, side) => {
+                    while (isBlankTextNode(sib)) sib = side === "prev" ? sib.previousSibling : sib.nextSibling;
+                    if (isWidgetNode(sib)) return true;
+                    if (sib && sib.nodeType === 3) {
+                        const t = sib.textContent.replace(/\u200B/g, "");
+                        return side === "prev" ? isWordChar(t[t.length - 1]) : isWordChar(t[0]);
+                    }
+                    return false;
+                };
+                const leftOk = (i) => i > 0 ? isWordChar(text[i - 1]) : neighbourWordLike(node.previousSibling, "prev");
+                const rightOk = (i) => i < text.length - 1 ? isWordChar(text[i + 1]) : neighbourWordLike(node.nextSibling, "next");
                 let idx = -1;
                 for (let i = 0; i < text.length; i++) {
                     const c = text[i];
                     const isTrigger = (/\s/u.test(c) && c !== "\n") || c === "-" || c === "+";
-                    if (isTrigger && isWordChar(text[i - 1]) && isWordChar(text[i + 1])) {
+                    if (isTrigger && leftOk(i) && rightOk(i)) {
                         idx = i;
                         break;
                     }
                 }
                 if (idx === -1) continue;
 
-                // Capture the caret's offset within this exact text node (if it's currently
-                // inside it) *before* mutating, so it can be restored at the same logical spot
-                // relative to the split afterwards — not just dropped at the start of whatever
-                // follows, which put it BEFORE characters the user had already typed (e.g.
-                // typing "s" right after the trigger char would land as "sy" -> "ys").
+                // Capture the caret offset within this node before splitting, so it can be
+                // restored at the same spot relative to the split rather than jumping.
                 let caretOffset = null;
                 const sel = window.getSelection && window.getSelection();
                 if (sel && sel.rangeCount > 0) {
@@ -1012,8 +1226,13 @@
                 const before = text.slice(0, idx);
                 const after = text.slice(idx + 1);
                 const parent = node.parentNode;
-                const beforeNode = document.createTextNode(before);
-                parent.insertBefore(beforeNode, node);
+                // Skip empty before/after text nodes: an empty node between a widget and its real
+                // neighbour would hide that neighbour from checks that only look one sibling over.
+                let beforeNode = null;
+                if (before) {
+                    beforeNode = document.createTextNode(before);
+                    parent.insertBefore(beforeNode, node);
+                }
                 parent.insertBefore(widget, node);
                 let afterNode = null;
                 if (after) {
@@ -1028,8 +1247,10 @@
                         const rel = caretOffset - (idx + 1);
                         if (afterNode) range.setStart(afterNode, Math.min(rel, afterNode.textContent.length));
                         else range.setStartAfter(widget);
-                    } else if (caretOffset !== null) {
+                    } else if (caretOffset !== null && beforeNode) {
                         range.setStart(beforeNode, Math.min(caretOffset, beforeNode.textContent.length));
+                    } else if (caretOffset !== null) {
+                        range.setStartBefore(widget);
                     } else if (afterNode) {
                         range.setStart(afterNode, 0);
                     } else {
@@ -1044,10 +1265,206 @@
             return false;
         }
 
+        // --- Chinese-character input ---
+        // A typed Han character becomes a chip carrying its resolved wugniu spelling in
+        // dataset.char, which extractToneInputText reads like a boundary widget's data-char, so
+        // the rest of the pipeline never sees characters. Default reading is the highest-weight
+        // one; the popup can change the reading or the tone-1 mark.
+
+        function createCharChipWidget(resolution) {
+            const el = document.createElement("span");
+            el.contentEditable = "false";
+            el.setAttribute("role", "button");
+            el.tabIndex = 0;
+            el.className = "tb-char-chip";
+            el.dataset.han = resolution.han;
+            el.dataset.pronIndex = String(resolution.defaultIndex);
+            el.dataset.tone1Active = String(resolution.guessedTone1);
+            updateCharChipDisplay(el);
+            el.addEventListener("click", (e) => { e.stopPropagation(); showCharChipPopup(el); });
+            el.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showCharChipPopup(el); }
+            });
+            return el;
+        }
+
+        // Rebuilds dataset.char from the chip's current pronIndex/tone1Active, and sets the
+        // markers tb-multi (more than one reading exists) and tb-tone1 (tone 1 applied).
+        function updateCharChipDisplay(el) {
+            const resolution = resolveHanCharacter(el.dataset.han);
+            if (!resolution) return;
+            const pron = resolution.pronunciations[+el.dataset.pronIndex] || resolution.pronunciations[0];
+            const tone1 = el.dataset.tone1Active === "true";
+            el.textContent = el.dataset.han;
+            el.dataset.char = tone1 ? applyTone1Accent(pron.wugniu) : pron.wugniu;
+            el.classList.toggle("tb-multi", resolution.pronunciations.length > 1);
+            el.classList.toggle("tb-tone1", tone1);
+            el.title = `${el.dataset.han} → ${el.dataset.char}`;
+        }
+
+        // Same shape as normalizeInlineBoundaries, but the trigger is a Han character found in
+        // WUGNIU_DICT. An unresolvable character is skipped so it doesn't block later ones.
+        function normalizeChineseCharacters(container) {
+            const kids = Array.from(container.childNodes);
+            for (const node of kids) {
+                if (node.nodeType !== 3) continue;
+                const text = node.textContent;
+                let idx = -1, resolution = null;
+                for (let i = 0; i < text.length; i++) {
+                    if (/\p{Script=Han}/u.test(text[i])) {
+                        const r = resolveHanCharacter(text[i]);
+                        if (r) { idx = i; resolution = r; break; }
+                    }
+                }
+                if (idx === -1) continue;
+
+                let caretOffset = null;
+                const sel = window.getSelection && window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                    const r = sel.getRangeAt(0);
+                    if (r.collapsed && r.startContainer === node) caretOffset = r.startOffset;
+                }
+
+                const widget = createCharChipWidget(resolution);
+                // The chip for the character the caret was in is the one the user just typed;
+                // handleToneInputChanged puts the caret after it once the DOM has settled.
+                if (caretOffset !== null) _typedChip = widget;
+                const before = text.slice(0, idx);
+                let after = text.slice(idx + 1);
+                // Insert a separating space after the chip unless the following text already
+                // starts with a separator, so adjacent syllables stay split.
+                const needsAutoSpace = after.length === 0 || isWordChar(after[0]);
+                if (needsAutoSpace) after = " " + after;
+
+                const parent = node.parentNode;
+                // Skip an empty beforeNode (see normalizeInlineBoundaries) so the chip's real
+                // neighbour stays its immediate sibling.
+                let beforeNode = null;
+                if (before) {
+                    beforeNode = document.createTextNode(before);
+                    parent.insertBefore(beforeNode, node);
+                }
+                parent.insertBefore(widget, node);
+                let afterNode = null;
+                if (after) {
+                    afterNode = document.createTextNode(after);
+                    parent.insertBefore(afterNode, node);
+                }
+                parent.removeChild(node);
+
+                if (sel) {
+                    const range = document.createRange();
+                    if (caretOffset !== null && caretOffset > idx) {
+                        const rel = caretOffset - (idx + 1) + (needsAutoSpace ? 1 : 0);
+                        if (afterNode) range.setStart(afterNode, Math.min(rel, afterNode.textContent.length));
+                        else range.setStartAfter(widget);
+                    } else if (caretOffset !== null && beforeNode) {
+                        range.setStart(beforeNode, Math.min(caretOffset, beforeNode.textContent.length));
+                    } else if (caretOffset !== null) {
+                        range.setStartBefore(widget);
+                    } else if (afterNode) {
+                        // No caret info (e.g. after an IME compositionend): land past the
+                        // auto-inserted space so continued typing follows the chip.
+                        range.setStart(afterNode, needsAutoSpace ? 1 : 0);
+                    } else {
+                        range.setStartAfter(widget);
+                    }
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        // True if `node`'s side (in direction `dir`, skipping blank nodes) holds a syllable: a
+        // char-chip, or a text node with a letter at its adjacent edge. A boundary dot does not
+        // count. Used to drop dots left with no syllable on one side.
+        function hasSyllableNeighbor(node, dir) {
+            while (isBlankTextNode(node)) {
+                node = dir === "next" ? node.nextSibling : node.previousSibling;
+            }
+            if (!node) return false;
+            if (node.nodeType === 1) return node.classList && node.classList.contains("tb-char-chip");
+            if (node.nodeType === 3) {
+                const t = node.textContent.replace(/\u200B/g, "");
+                return isWordChar(t[0]) || isWordChar(t[t.length - 1]);
+            }
+            return false;
+        }
+
+        function cleanupOrphanedBoundaryWidgets(container) {
+            let changed = false;
+            Array.from(container.querySelectorAll(".tb-inline-dot")).forEach(dot => {
+                if (!hasSyllableNeighbor(dot.previousSibling, "prev") || !hasSyllableNeighbor(dot.nextSibling, "next")) {
+                    dot.remove();
+                    changed = true;
+                }
+            });
+            return changed;
+        }
+
+        function nonBlankSibling(node, dir) {
+            node = dir === "next" ? node.nextSibling : node.previousSibling;
+            while (isBlankTextNode(node)) node = dir === "next" ? node.nextSibling : node.previousSibling;
+            return node;
+        }
+
+        // Each char-chip is its own syllable, so two chips (or a chip and adjacent wugniu
+        // letters) with no separator between them get a plain space, which the next
+        // normalizeInlineBoundaries pass turns into a dash. An existing separator (dot, space, or
+        // punctuation) is left alone. Safety net for when the per-char auto-space is missing —
+        // e.g. after an IME commit, or after the user deletes a comma between two chips.
+        function ensureSyllableSeparators(container) {
+            const chips = Array.from(container.querySelectorAll(".tb-char-chip"));
+            for (const chip of chips) {
+                const right = nonBlankSibling(chip, "next");
+                if (right) {
+                    const isChip = right.nodeType === 1 && right.classList.contains("tb-char-chip");
+                    const startsWithLetter = right.nodeType === 3 && isWordChar(right.textContent.replace(/\u200B/g, "")[0]);
+                    if (isChip || startsWithLetter) {
+                        container.insertBefore(document.createTextNode(" "), chip.nextSibling);
+                        return true;
+                    }
+                }
+                const left = nonBlankSibling(chip, "prev");
+                if (left && left.nodeType === 3) {
+                    const t = left.textContent.replace(/\u200B/g, "");
+                    if (isWordChar(t[t.length - 1])) { // wugniu letters directly before the chip
+                        container.insertBefore(document.createTextNode(" "), chip);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        let _typedChip = null;
+
         function handleToneInputChanged() {
             if (!inputTone) return;
-            while (normalizeInlineBoundaries(inputTone)) { /* handle pasted multi-boundary text */ }
+            _typedChip = null;
+            while (
+                normalizeChineseCharacters(inputTone) ||
+                ensureSyllableSeparators(inputTone) ||
+                normalizeInlineBoundaries(inputTone) ||
+                cleanupOrphanedBoundaryWidgets(inputTone) ||
+                stripBlankTextNodes(inputTone)
+            ) { /* settle pasted/edited mixed content */ }
+            // If the user just typed a Han character, put the caret after its chip (the passes
+            // above can leave it elsewhere). Other typing keeps the native caret.
+            if (_typedChip && _typedChip.parentNode) placeCaretAfterNode(_typedChip);
             const text = extractToneInputText(inputTone).normalize("NFC");
+            // After deleting everything a contenteditable keeps a stray <br>/anchors, so :empty
+            // never matches and the placeholder stays hidden. If nothing meaningful is left (only
+            // whitespace/anchors), clear it so the placeholder shows.
+            if (text.replace(/[\u200B\s]/g, "") === "") {
+                inputTone.innerHTML = "";
+                inputTone.dataset.plain = "";
+                convertPhraseWithSandhi("", "sinitic");
+                return;
+            }
             inputTone.dataset.plain = text;
             convertPhraseWithSandhi(text, "sinitic");
             resizeAll();
@@ -1090,12 +1507,9 @@
             return useBar ? toBars(pair) : chaoToSuperscript(pair);
         }
 
-        // On-page HTML form: the tone-bar glyphs (˩˨˧˦˥) are IPA spacing-modifier letters that
-        // Gentium Book Plus renders natively, but the Unicode superscript digits (⁰¹²³⁴⁵) aren't
-        // covered by that font and silently fall back to a different system font whose glyphs
-        // have a much wider advance width — that's what was stretching the syllable box (and the
-        // curve drawn from its measured width) in digit mode only. A real <sup> around plain
-        // ASCII digits sidesteps the missing-glyph fallback entirely since every font has 0-9.
+        // On-page form. Uses a real <sup> of ASCII digits rather than Unicode superscript
+        // digits, which Gentium Book Plus lacks and renders in a wider fallback font (that
+        // widened the syllable box, and the curve measured from it).
         function toneMarkHtml(pair, useBar) {
             return useBar ? toBars(pair) : `<sup>${pair}</sup>`;
         }
@@ -1106,19 +1520,12 @@
             return `<span class="syl-wrap"${contourAttr}><span class="syl-text">${ipa}${mark}</span></span>`;
         }
 
-        // Draws ONE continuous pitch-contour line across all syllables that carry a
-        // data-contour attribute, measured from actual rendered layout (so it tracks real text
-        // width/wrapping) rather than one disconnected curve per syllable. Each syllable keeps
-        // its own contour as a straight (flat, for a level tone like "22"/"44") segment spanning
-        // its full width, and consecutive syllables are joined by a smooth eased curve across the
-        // gap between them — so e.g. "22 44" reads as flat-low, smooth climb, flat-high, rather
-        // than one blended wave that blurs the level portions. Syllables that wrap onto a
-        // different line start a new path segment instead of jumping across lines.
+        // Builds one continuous pitch line for a line of syllables. Each syllable's contour is
+        // a straight segment (flat for a level tone), joined to the next by an eased curve across
+        // the gap, so e.g. "22 44" reads as flat-low, climb, flat-high. Measured from rendered
+        // layout. Wrapped lines are drawn separately (see drawContinuousToneCurve).
         function buildToneCurveD(line) {
-            // Small on purpose: this whole band has to fit inside one line's own leading (the
-            // gap line-height adds above the glyphs), not spill upward into the previous line —
-            // a bigger band either overlaps the line above or forces line-height so tall the
-            // curve reads as floating far away from its syllable instead of sitting on it.
+            // Small so the band fits within one line's leading and doesn't overlap the line above.
             const CURVE_BAND = 5;
             const digitToY = d => (5 - Number(d)) * (CURVE_BAND / 4.5); // 5=high(y~0) .. 1=low(y~CURVE_BAND)
 
@@ -1127,9 +1534,8 @@
             line.forEach(w => {
                 const [d0, d1] = w.dataset.contour.split("");
                 const bandTop = w.offsetTop - CURVE_BAND + 1;
-                // Inset the flat segment so it doesn't stretch edge-to-edge across the whole
-                // syllable box (which is wider than the glyphs look, especially with a tone
-                // mark attached) — the transition curve absorbs the extra space instead.
+                // Inset the flat segment from the syllable box edges; the transition curve fills
+                // the gap.
                 const inset = Math.min(w.offsetWidth * 0.18, 7);
                 const xL = w.offsetLeft + inset, xR = w.offsetLeft + w.offsetWidth - inset;
                 const y0 = bandTop + digitToY(d0), y1 = bandTop + digitToY(d1);
@@ -1189,11 +1595,6 @@
         function convertToneGroup(syllables, variant, mode, useBar) {
             const infos = syllables.map(getSyllableToneInfo);
             const warnings = infos.filter(i => i.warning).map(i => i.warning);
-            infos.forEach((info, idx) => {
-                if (info.accentMismatch && toneCategoryMattersAt(idx, syllables.length, mode)) {
-                    warnings.push(`「${info.rawSyl}」聲母濁，但標仔陰平調，已按陰平處理`);
-                }
-            });
             const categories = infos.map(i => i.category);
 
             // Lexical exceptions (e.g. 弗/veq) only apply once the syllable is "in flow"
@@ -1209,21 +1610,19 @@
                 : computeSandhiContours(sandhiCategories);
 
             const htmlParts = infos.map((info, idx) => {
-                const ipa = wugniuToIpaCore(info.plain, variant);
+                const ipa = wugniuToIpaCore(info.plain, variant, 'tone-tsiedoe-switch');
                 return renderSyllableHTML(ipa, contours ? contours[idx] : null, useBar);
             });
 
             const plainParts = infos.map((info, idx) => {
-                const ipa = wugniuToIpaCore(info.plain, variant);
+                const ipa = wugniuToIpaCore(info.plain, variant, 'tone-tsiedoe-switch');
                 return contours ? ipa + toneMarkText(contours[idx], useBar) : ipa;
             });
 
-            if (!contours) {
-                if (mode === "lps" && syllables.length > 5) {
-                    warnings.push(`詞組超過5個音節（共${syllables.length}個），左起變調弗支持`);
-                } else if (categories.every(c => c !== null)) {
-                    warnings.push(`查弗着變調表（${syllables.length}音節，首字調類${categories[0]}）`);
-                }
+            // The only case with no contour and valid input: an LPS chain longer than the
+            // 5-syllable table. (Any shorter valid chain always has a table entry.)
+            if (!contours && mode === "lps" && syllables.length > 5) {
+                warnings.push(`詞組超過${syllables.length}個字，左起變調算弗來`);
             }
 
             return { html: htmlParts.join(" "), plain: plainParts.join(" "), warnings };
@@ -1278,17 +1677,18 @@
             outputBox.innerHTML = outHtml;
             outputBox.dataset.plain = outPlain;
             drawContinuousToneCurve(outputBox);
-            // The IPA text uses a webfont (Gentium Book Plus); if it's still loading when we
-            // first measure syllable widths, the curve is built from fallback-font metrics and
-            // visibly mismatches once the real font swaps in. Redraw once it's actually ready.
+            // Redraw once the webfont loads: measuring syllable widths before it's ready builds
+            // the curve from fallback-font metrics, which mismatch after the font swaps in.
             if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
                 document.fonts.ready.then(() => drawContinuousToneCurve(outputBox)).catch(() => {});
             }
-            if (warningsBox) warningsBox.textContent = allWarnings.join("；");
+            // Dedupe: the same syllable repeated in a phrase would otherwise stack identical
+            // warnings; the user only needs to be told once.
+            if (warningsBox) warningsBox.textContent = [...new Set(allWarnings)].join("；");
         }
 
-        function applyJiantuan(wugniu) {
-            let jtSwitch = document.getElementById('jiantuan-switch');
+        function applyTsiedoe(wugniu, switchId = 'tsiedoe-switch') {
+            let jtSwitch = document.getElementById(switchId);
             if (!jtSwitch || !jtSwitch.checked) return wugniu;
 
             return wugniu.split(' ').map(syl => {
@@ -1298,6 +1698,58 @@
                 if (syl.startsWith('zi')) return syl.replace(/^zi/, 'zhi');
                 return syl;
             }).join(' ');
+        }
+
+        // The two 弗分尖團 switches are independent; each re-runs only its own tool.
+        function onMainTsiedoeChange() {
+            document.getElementById('lookup-input').dispatchEvent(new Event('input'));
+            document.getElementById('input-wugniu').dispatchEvent(new Event('input'));
+            document.getElementById('input-sinitic').dispatchEvent(new Event('input'));
+            document.getElementById('input-broad').dispatchEvent(new Event('input'));
+        }
+
+        function onToneTsiedoeChange() {
+            document.getElementById('input-tone').dispatchEvent(new Event('input'));
+        }
+
+        // 尖/團 spelling variants of one syllable (shi<->si, zhi<->zi, chi<->tshi, ci<->tsi),
+        // so a search matches entries stored under either form when 弗分尖團 is on.
+        function tsiedoeSyllableVariants(syl) {
+            const opts = new Set([syl]);
+            if (syl.startsWith('shi')) opts.add(syl.replace(/^shi/, 'si'));
+            else if (syl.startsWith('zhi')) opts.add(syl.replace(/^zhi/, 'zi'));
+            else if (syl.startsWith('chi')) opts.add(syl.replace(/^chi/, 'tshi'));
+            else if (syl.startsWith('ci')) opts.add(syl.replace(/^ci/, 'tsi'));
+            if (syl.startsWith('tshi')) opts.add(syl.replace(/^tshi/, 'chi'));
+            else if (syl.startsWith('tsi')) opts.add(syl.replace(/^tsi/, 'ci'));
+            else if (syl.startsWith('si')) opts.add(syl.replace(/^si/, 'shi'));
+            else if (syl.startsWith('zi')) opts.add(syl.replace(/^zi/, 'zhi'));
+            return [...opts];
+        }
+
+        // All 尖/團 variants of a (possibly multi-syllable) search string, combining each
+        // syllable's variants.
+        function tsiedoeSearchVariants(str) {
+            let results = [''];
+            str.split(' ').forEach(syl => {
+                const opts = tsiedoeSyllableVariants(syl);
+                const next = [];
+                results.forEach(prefix => opts.forEach(opt => next.push(prefix ? prefix + ' ' + opt : opt)));
+                results = next;
+            });
+            return results;
+        }
+
+        // Index in data.p matching searchStr (also trying 尖/團 variants when the switch is on),
+        // or -1.
+        function findPronMatch(data, searchStr) {
+            const jtSwitch = document.getElementById('tsiedoe-switch');
+            const candidates = (jtSwitch && jtSwitch.checked) ? tsiedoeSearchVariants(searchStr) : [searchStr];
+            for (const candidate of candidates) {
+                const idx = data.p.indexOf(candidate);
+                if (idx !== -1) return idx;
+            }
+            return -1;
         }
 
         function convertCore(s) {
@@ -1337,33 +1789,15 @@
                 }
             }
 
-            return applyJiantuan(romInit + fin);
+            return applyTsiedoe(romInit + fin);
         }
 
-        function wugniuToIpaCore(s, variant) {
-            s = applyJiantuan(s);
+        function wugniuToIpaCore(s, variant, switchId = 'tsiedoe-switch') {
+            s = applyTsiedoe(s, switchId);
             if (s === "m") return "m̩";
             if (s === "ng") return "ŋ̩"; // Default to standalone ŋ̩
 
-            let rom = s;
-            // Un-simplify glides (gh + i/u)
-            if (rom.startsWith("yi")) {
-                let suffix = rom.slice(2);
-                if (suffix === "" || suffix.startsWith("n") || suffix.startsWith("q")) {
-                    rom = "ghi" + suffix;
-                }
-            } else if (rom.startsWith("y")) {
-                let suffix = rom.slice(1);
-                rom = "ghi" + suffix;
-            } else if (rom.startsWith("wu")) {
-                let suffix = rom.slice(2);
-                if (suffix === "") {
-                    rom = "ghu";
-                }
-            } else if (rom.startsWith("w")) {
-                let suffix = rom.slice(1);
-                rom = "ghu" + suffix;
-            }
+            let rom = unsimplifyGlides(s); // gh + i/u written as bare y-/w- in wugniu
 
             let romInit = "";
             let rest = rom;
@@ -1492,17 +1926,120 @@
             isSyncing = false;
         });
 
-        inputTone.addEventListener("input", () => {
+        // Skip processing during IME composition: mutating the DOM mid-composition force-commits
+        // the in-progress pinyin. Run once on compositionend instead.
+        let imeComposing = false;
+        inputTone.addEventListener("compositionstart", () => { imeComposing = true; });
+        inputTone.addEventListener("compositionend", () => { imeComposing = false; handleToneInputChanged(); });
+
+        // A caret directly between two sibling widgets (no text node there) is a valid position
+        // for click/arrow navigation, but the browser has nowhere to insert a typed character —
+        // so create a one-character text node right there, on demand, only when the user actually
+        // types. Nothing is created just from navigating past it, so arrow keys stay single-press.
+        inputTone.addEventListener("beforeinput", (e) => {
+            if (imeComposing || e.isComposing) return;
+            if (!e.data || e.inputType !== "insertText") return;
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            if (!range.collapsed || range.startContainer.nodeType !== 1) return;
+            e.preventDefault();
+            const container = range.startContainer;
+            const ref = container.childNodes[range.startOffset] || null;
+            const node = document.createTextNode(e.data);
+            container.insertBefore(node, ref);
+            const newRange = document.createRange();
+            newRange.setStart(node, node.textContent.length);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
             handleToneInputChanged();
         });
 
-        // Enter support: rather than manually intercepting the keystroke and re-implementing
-        // caret placement with Range/Selection math (which kept landing the caret one step off —
-        // "press twice" / typing jumping to the line above), just let the browser's own native
-        // Enter handling do it, which manages the caret correctly on its own. The only thing we
-        // configure is *which tag* it uses for the break: browsers default to wrapping the new
-        // line in a fresh <div>, which extractToneInputText can't see into; asking for <br>
-        // instead keeps the content flat, and extractToneInputText below reads a <br> as "\n".
+        inputTone.addEventListener("input", (e) => {
+            if (imeComposing || e.isComposing) return;
+            handleToneInputChanged();
+        });
+
+        // The atomic widget adjacent to the caret in `direction`, or null. Skips blank/ZWSP
+        // nodes so a caret placed by navigation still reaches the widget. The browser's own
+        // contenteditable=false deletion is unreliable, so the handler below deletes explicitly.
+        function widgetAdjacentToCaret(range, direction) {
+            const { startContainer: c, startOffset: o } = range;
+            let node = null;
+            // A caret inside a blank/ZWSP node counts as at the edge either way, so deletion
+            // reaches through to the widget.
+            const atStartEdge = c.nodeType === 3 && (o === 0 || isBlankTextNode(c));
+            const atEndEdge = c.nodeType === 3 && (o === c.textContent.length || isBlankTextNode(c));
+            if (direction === "before") {
+                if (atStartEdge) node = c.previousSibling;
+                else if (c.nodeType === 1 && o > 0) node = c.childNodes[o - 1];
+                else return null;
+                while (isBlankTextNode(node)) node = node.previousSibling;
+            } else {
+                if (atEndEdge) node = c.nextSibling;
+                else if (c.nodeType === 1 && o < c.childNodes.length) node = c.childNodes[o];
+                else return null;
+                while (isBlankTextNode(node)) node = node.nextSibling;
+            }
+            return node;
+        }
+
+        inputTone.addEventListener("keydown", (e) => {
+            if (e.key !== "Backspace" && e.key !== "Delete") return;
+            if (imeComposing || e.isComposing) return; // never intercept keys mid-IME-composition
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            if (!range.collapsed) return; // a real selection: let the browser delete it normally
+
+            // Replace a deleted comma/punctuation with a space when it sits between two letters
+            // in the same text node, so the syllables stay split (the space becomes a dash). A
+            // leading/trailing comma deletes normally. (Between two chips the comma is its own
+            // node, deletes natively, and ensureSyllableSeparators re-adds the dash.)
+            const cc = range.startContainer;
+            if (cc.nodeType === 3) {
+                const delIdx = e.key === "Backspace" ? range.startOffset - 1 : range.startOffset;
+                const ch = cc.textContent[delIdx];
+                if (ch && isDomainBreakChar(ch) && isWordChar(cc.textContent[delIdx - 1]) && isWordChar(cc.textContent[delIdx + 1])) {
+                    e.preventDefault();
+                    const t = cc.textContent;
+                    cc.textContent = t.slice(0, delIdx) + " " + t.slice(delIdx + 1);
+                    const r = document.createRange();
+                    r.setStart(cc, delIdx + 1);
+                    r.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(r);
+                    handleToneInputChanged();
+                    return;
+                }
+            }
+
+            const target = widgetAdjacentToCaret(range, e.key === "Backspace" ? "before" : "after");
+            if (!target || !isWidgetNode(target)) return;
+
+            e.preventDefault();
+            const parent = target.parentNode;
+            const anchor = e.key === "Backspace" ? target.previousSibling : target.nextSibling;
+            target.remove();
+
+            const newRange = document.createRange();
+            if (anchor && anchor.nodeType === 3) {
+                newRange.setStart(anchor, e.key === "Backspace" ? anchor.textContent.length : 0);
+            } else if (anchor) {
+                e.key === "Backspace" ? newRange.setStartAfter(anchor) : newRange.setStartBefore(anchor);
+            } else {
+                newRange.setStart(parent, 0);
+            }
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            handleToneInputChanged();
+        });
+
+        // Let the browser handle Enter natively (its caret placement is correct), but make it
+        // insert a <br> instead of wrapping the new line in a <div> that extractToneInputText
+        // can't read; extractToneInputText reads a <br> as "\n".
         try { document.execCommand("defaultParagraphSeparator", false, "br"); } catch (e) { /* unsupported: rare, harmless */ }
 
         window.addEventListener('resize', resizeAll);
@@ -1552,10 +2089,9 @@
                 const searchStrFull = inputVal.toLowerCase().trim();
                 let exactMatches = [];
                 for (const [char, data] of Object.entries(WUGNIU_DICT)) {
-                    if (data.p.includes(searchStrFull)) {
-                        let pIndex = data.p.indexOf(searchStrFull);
-                        let pWeight = data.pw[pIndex];
-                        exactMatches.push({ trad: char, simp: data.s, wugniu: searchStrFull, pron_weight: pWeight, w: data.w || 0 });
+                    const pIndex = findPronMatch(data, searchStrFull);
+                    if (pIndex !== -1) {
+                        exactMatches.push({ trad: char, simp: data.s, wugniu: data.p[pIndex], pron_weight: data.pw[pIndex], w: data.w || 0 });
                     }
                 }
                 if (exactMatches.length > 0) {
@@ -1589,10 +2125,9 @@
                         let matchedChars = [];
                         const searchStr = inputStr.toLowerCase();
                         for (const [char, data] of Object.entries(WUGNIU_DICT)) {
-                            if (data.p.includes(searchStr)) {
-                                let pIndex = data.p.indexOf(searchStr);
-                                let pWeight = data.pw[pIndex];
-                                matchedChars.push({ trad: char, simp: data.s, wugniu: searchStr, pron_weight: pWeight, w: data.w || 0 });
+                            const pIndex = findPronMatch(data, searchStr);
+                            if (pIndex !== -1) {
+                                matchedChars.push({ trad: char, simp: data.s, wugniu: data.p[pIndex], pron_weight: data.pw[pIndex], w: data.w || 0 });
                             }
                         }
                         // Sort by pronunciation weight descending
@@ -1679,7 +2214,7 @@
             pane.appendChild(headerRow);
 
             allResults.forEach((res, index) => {
-                const wugniu = applyJiantuan(res.wugniu);
+                const wugniu = applyTsiedoe(res.wugniu);
                 const sinitic = convertAll(wugniu, 'ipa-sinitic');
 
                 const row = document.createElement('div');
