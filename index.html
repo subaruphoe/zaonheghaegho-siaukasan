@@ -799,7 +799,7 @@
             const derived = deriveToneCategory(jtPlain);
 
             if (derived === null) {
-                return { rawSyl, plain: jtPlain, category: null, warning: `「${rawSyl}」拼法生疏，聲調算弗出` };
+                return { rawSyl, plain: jtPlain, category: null, warning: `弗認得「${rawSyl}」隻拼寫，聲調算弗出` };
             }
 
             if (YIN_FORCING_INITIALS.has(derived.initial)) {
