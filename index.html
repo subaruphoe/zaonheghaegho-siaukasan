@@ -609,7 +609,6 @@
     </div>
 
     <script src="dict.js"></script>
-    <script src="mandarin_tone1.js"></script>
     <script>
 
         function lookupWord(word) {
@@ -643,16 +642,16 @@
 
         // Dictionary Data (Reverse)
         const WUGNIU_INITIALS_SINITIC = {
-            "ph": "pʰ", "p": "p", "b": "b", "m": "m", "f": "f", "v": "v", "mh": "m",
-            "th": "tʰ", "t": "t", "d": "d", "n": "n", "l": "l", "nh": "n", "nk": "ŋ", "lh": "l",
+            "ph": "pʰ", "p": "p", "b": "b", "m": "m", "f": "f", "v": "v", "mh": "ʔm",
+            "th": "tʰ", "t": "t", "d": "d", "n": "n", "l": "l", "nh": "ʔn", "nk": "ʔŋ", "lh": "ʔl",
             "tsh": "tsʰ", "ts": "ts", "s": "s", "z": "z",
             "ch": "tɕʰ", "c": "tɕ", "j": "dʑ", "gn": "ȵ", "sh": "ɕ", "zh": "ʑ",
             "kh": "kʰ", "k": "k", "g": "g", "gh": "ɦ", "ng": "ŋ", "h": "h"
         };
 
         const WUGNIU_INITIALS_BROAD = {
-            "ph": "pʰ", "p": "p", "b": "b", "m": "m", "f": "f", "v": "v", "mh": "m",
-            "th": "tʰ", "t": "t", "d": "d", "n": "n", "l": "l", "nh": "n", "nk": "ŋ", "lh": "l",
+            "ph": "pʰ", "p": "p", "b": "b", "m": "m", "f": "f", "v": "v", "mh": "ʔm",
+            "th": "tʰ", "t": "t", "d": "d", "n": "n", "l": "l", "nh": "ʔn", "nk": "ʔŋ", "lh": "ʔl",
             "tsh": "t͡sʰ", "ts": "t͡s", "s": "s", "z": "z",
             "ch": "t͡ɕʰ", "c": "t͡ɕ", "j": "d͡ʑ", "gn": "n̠ʲ", "sh": "ɕ", "zh": "ʑ",
             "kh": "kʰ", "k": "k", "g": "ɡ", "gh": "ɦ", "ng": "ŋ", "h": "h"
@@ -764,6 +763,12 @@
         function deriveToneCategory(plainSyl) {
             if (plainSyl === "m") return { category: 6, register: "yang", initial: "", checked: false };
             if (plainSyl === "ng") return { category: 6, register: "yang", initial: "", checked: false };
+            // Bare mh/nh/lh/nk (no vowel) are the yin-forcing counterparts of syllabic m/ng/l -
+            // same syllabic consonant, forced to tone-1 the same way a vowelled mh-/nh- syllable is.
+            if (plainSyl === "mh") return { category: 1, register: "yin", initial: "mh", checked: false };
+            if (plainSyl === "nh") return { category: 1, register: "yin", initial: "nh", checked: false };
+            if (plainSyl === "lh") return { category: 1, register: "yin", initial: "lh", checked: false };
+            if (plainSyl === "nk") return { category: 1, register: "yin", initial: "nk", checked: false };
 
             const rom = unsimplifyGlides(plainSyl);
             let romInit = "";
@@ -813,14 +818,31 @@
             return { rawSyl, plain: jtPlain, category: derived.category, warning: null };
         }
 
-        // Marks a plain wugniu syllable as tone 1 by accenting the first accentable letter of
-        // the final (inverse of stripAccentTone1, which strips any accent regardless of position).
+        // Marks a plain wugniu syllable as tone 1 by accenting the final's main vowel (inverse
+        // of stripAccentTone1, which strips any accent regardless of position).
         function applyTone1Accent(plainSyl) {
+            // Already accented (e.g. a search query typed with the accent already on it) -
+            // accenting again would double-mark it, so leave it as-is.
+            if (stripAccentTone1(plainSyl).isTone1) return plainSyl;
+
             let rest = plainSyl;
             for (const init of wInits) {
                 if (plainSyl.startsWith(init)) { rest = plainSyl.slice(init.length); break; }
             }
             const initial = plainSyl.slice(0, plainSyl.length - rest.length);
+            // Devoiced initials (nh/mh/lh/nk) already fully express tone-1 on their own -
+            // accenting on top would be redundant/wrong, so leave them untouched.
+            if (YIN_FORCING_INITIALS.has(initial)) return plainSyl;
+            // A leading i/u in the final is a glide (onset), not the nucleus, whenever another
+            // accentable vowel follows it (ia -> nucleus a, uaon -> nucleus a); accent that vowel
+            // instead of the glide. Otherwise (bare i/u, or i/u + consonant coda only) the i/u
+            // IS the nucleus and gets accented directly.
+            const start = (rest.length >= 2 && (rest[0] === "i" || rest[0] === "u") && ACCENT_MAP[rest[1]]) ? 1 : 0;
+            for (let i = start; i < rest.length; i++) {
+                if (ACCENT_MAP[rest[i]]) {
+                    return initial + rest.slice(0, i) + ACCENT_MAP[rest[i]] + rest.slice(i + 1);
+                }
+            }
             for (let i = 0; i < rest.length; i++) {
                 if (ACCENT_MAP[rest[i]]) {
                     return initial + rest.slice(0, i) + ACCENT_MAP[rest[i]] + rest.slice(i + 1);
@@ -842,8 +864,9 @@
             for (let i = 1; i < pronunciations.length; i++) {
                 if (pronunciations[i].weight > pronunciations[defaultIndex].weight) defaultIndex = i;
             }
-            const guessedTone1 = (typeof MANDARIN_YINPING_CHARS !== "undefined") && !!MANDARIN_YINPING_CHARS &&
-                (MANDARIN_YINPING_CHARS.has(han) || MANDARIN_YINPING_CHARS.has(trad) || MANDARIN_YINPING_CHARS.has(data.s));
+            // Tone-1 readings are stored with the accent already embedded (see applyTone1Accent),
+            // so the default pronunciation's own spelling is the tone-1 signal - no external lookup.
+            const guessedTone1 = stripAccentTone1(pronunciations[defaultIndex].wugniu).isTone1;
 
             return { han, trad, simp: data.s, pronunciations, defaultIndex, guessedTone1 };
         }
@@ -1479,21 +1502,41 @@
             return contour.split(" ");
         }
 
-        function computeSandhiContoursRPS(categories) {
-            const n = categories.length;
-            if (n === 0) return null;
+        // A domain is a sequence of syllables joined by per-gap boundaries ("lps" or "rps",
+        // from `boundaries`, one entry per gap). "rps" gaps split the domain into groups; each
+        // group is itself an LPS-joined mini-chain. Only the LAST group keeps its own full LPS
+        // pattern; every earlier group is neutralised as a whole — a length-1 group uses the
+        // canonical RPS_NEUTRAL value for its category, a longer group keeps its own first LPS
+        // value and flattens the rest of that group to RPS_MULTI. A domain with no "rps" gaps is
+        // one group that's trivially "the last group", so this reduces to plain LPS unchanged.
+        function computeGroupedSandhiContours(categories, boundaries) {
+            if (categories.length === 0) return null;
             if (categories.some(c => c === null)) return null;
-            if (n === 1) {
-                const contour = SANDHI_TABLE[`1${categories[0]}`];
-                return contour ? [contour] : null;
+
+            const groups = [[categories[0]]];
+            for (let i = 0; i < boundaries.length; i++) {
+                if (boundaries[i] === "rps") groups.push([categories[i + 1]]);
+                else groups[groups.length - 1].push(categories[i + 1]);
             }
+
             const values = [];
-            for (let i = 0; i < n - 1; i++) {
-                values.push(i === n - 2 ? RPS_NEUTRAL[categories[i]] : RPS_MULTI);
+            for (let g = 0; g < groups.length; g++) {
+                const group = groups[g];
+                if (g === groups.length - 1) {
+                    const contour = computeSandhiContours(group);
+                    if (!contour) return null;
+                    values.push(...contour);
+                } else if (group.length === 1) {
+                    const neutral = RPS_NEUTRAL[group[0]];
+                    if (!neutral) return null;
+                    values.push(neutral);
+                } else {
+                    const contour = computeSandhiContours(group);
+                    if (!contour) return null;
+                    values.push(contour[0]);
+                    for (let i = 1; i < group.length; i++) values.push(RPS_MULTI);
+                }
             }
-            const finalContour = SANDHI_TABLE[`1${categories[n - 1]}`];
-            if (!finalContour) return null;
-            values.push(finalContour);
             return values;
         }
 
@@ -1592,7 +1635,19 @@
             container.insertBefore(svg, container.firstChild);
         }
 
-        function convertToneGroup(syllables, variant, mode, useBar) {
+        // Sizes of the "+"-delimited groups a domain splits into (see
+        // computeGroupedSandhiContours) — used only to word the >5-syllable warning correctly,
+        // since the real per-call limit is now per-group, not per-domain.
+        function groupSizes(n, boundaries) {
+            const sizes = [1];
+            for (let i = 0; i < boundaries.length; i++) {
+                if (boundaries[i] === "rps") sizes.push(1);
+                else sizes[sizes.length - 1]++;
+            }
+            return sizes;
+        }
+
+        function convertToneGroup(syllables, variant, boundaries, useBar) {
             const infos = syllables.map(getSyllableToneInfo);
             const warnings = infos.filter(i => i.warning).map(i => i.warning);
             const categories = infos.map(i => i.category);
@@ -1605,9 +1660,7 @@
                 return override !== undefined ? override : cat;
             });
 
-            const contours = mode === "rps"
-                ? computeSandhiContoursRPS(sandhiCategories)
-                : computeSandhiContours(sandhiCategories);
+            const contours = computeGroupedSandhiContours(sandhiCategories, boundaries);
 
             const htmlParts = infos.map((info, idx) => {
                 const ipa = wugniuToIpaCore(info.plain, variant, 'tone-tsiedoe-switch');
@@ -1619,10 +1672,14 @@
                 return contours ? ipa + toneMarkText(contours[idx], useBar) : ipa;
             });
 
-            // The only case with no contour and valid input: an LPS chain longer than the
-            // 5-syllable table. (Any shorter valid chain always has a table entry.)
-            if (!contours && mode === "lps" && syllables.length > 5) {
-                warnings.push(`詞組超過${syllables.length}個字，左起變調算弗來`);
+            // The only case with no contour and valid input: some "+"-delimited group is longer
+            // than the 5-syllable table. (Any shorter group always has a table entry.)
+            if (!contours && categories.every(c => c !== null)) {
+                const sizes = groupSizes(syllables.length, boundaries);
+                const longest = Math.max(...sizes);
+                if (longest > 5) {
+                    warnings.push(`一組連讀${longest}個字，超過5個字，變調算弗來`);
+                }
             }
 
             return { html: htmlParts.join(" "), plain: plainParts.join(" "), warnings };
@@ -1645,10 +1702,9 @@
             }
 
             // Per-boundary marking (see tokenizeToneInputFull): "-"/space = LPS join, "+" = RPS
-            // join, anything else (typically "&") hard-breaks into a separate domain. A domain's
-            // mode is RPS if ANY of its internal boundaries was marked "+", else LPS — this lets
-            // a single sentence mix left- and right-prominent sandhi at different points instead
-            // of being stuck with one global mode for the whole input.
+            // join, anything else (typically "&") hard-breaks into a separate domain. Each
+            // domain's own boundaries array is passed through to convertToneGroup, which groups
+            // it by "+" internally (see computeGroupedSandhiContours).
             const tokens = tokenizeToneInputFull(text);
             const { domains, seps } = tokensToDomains(tokens);
             let outHtml = "";
@@ -1657,8 +1713,7 @@
 
             domains.forEach((dom, i) => {
                 if (dom.syllables.length > 0) {
-                    const mode = dom.boundaries.includes("rps") ? "rps" : "lps";
-                    const { html, plain, warnings } = convertToneGroup(dom.syllables, variant, mode, useBar);
+                    const { html, plain, warnings } = convertToneGroup(dom.syllables, variant, dom.boundaries, useBar);
                     outHtml += `<span class="tone-domain">${html}</span>`;
                     outPlain += plain;
                     allWarnings = allWarnings.concat(warnings);
@@ -1740,22 +1795,40 @@
             return results;
         }
 
-        // Index in data.p matching searchStr (also trying 尖/團 variants when the switch is on),
-        // or -1.
-        function findPronMatch(data, searchStr) {
+        // A tone-1 reading's key is the plain spelling with the accent applied (see
+        // applyTone1Accent); phrases are space-separated syllables, each accented independently.
+        function accentedVariant(str) {
+            return str.split(' ').map(applyTone1Accent).join(' ');
+        }
+
+        // Direct O(1) reverse lookup: every character whose pronunciation is searchStr, trying
+        // 尖/團 variants (when the switch is on) and both the plain and tone-1-accented spelling
+        // of each, since tone-1 readings live under their own accented key in WUGNIU_PRON_DICT.
+        function findPronMatches(searchStr) {
             const jtSwitch = document.getElementById('tsiedoe-switch');
-            const candidates = (jtSwitch && jtSwitch.checked) ? tsiedoeSearchVariants(searchStr) : [searchStr];
-            for (const candidate of candidates) {
-                const idx = data.p.indexOf(candidate);
-                if (idx !== -1) return idx;
-            }
-            return -1;
+            const bases = (jtSwitch && jtSwitch.checked) ? tsiedoeSearchVariants(searchStr) : [searchStr];
+            const keys = new Set();
+            bases.forEach(v => { keys.add(v); keys.add(accentedVariant(v)); });
+            const out = [];
+            keys.forEach(key => {
+                const entries = WUGNIU_PRON_DICT[key];
+                if (entries) entries.forEach(e => out.push({ trad: e.c, simp: e.s, wugniu: key, pron_weight: e.w, w: e.w }));
+            });
+            return out;
         }
 
         function convertCore(s) {
             if (s === "m̩") return "m";
             if (s === "ɦŋ̩") return "ng";
             if (s === "ŋ̩") return "ng";
+            if (s === "ʔm̩") return "mh";
+            if (s === "ʔn̩") return "nh";
+            if (s === "ʔl̩") return "lh";
+            if (s === "ʔŋ̩") return "nk";
+
+            // Tone-1 dict entries carry the accent as part of their canonical spelling (see
+            // applyTone1Accent); it marks tone only, so strip it before segmental conversion.
+            s = stripAccentTone1(s).plain;
 
             let romInit = "";
             let rest = s;
@@ -1793,9 +1866,17 @@
         }
 
         function wugniuToIpaCore(s, variant, switchId = 'tsiedoe-switch') {
+            // Tone-1 dict entries carry the accent as part of their canonical spelling (see
+            // applyTone1Accent); it marks tone only, so strip it before segmental conversion.
+            s = stripAccentTone1(s).plain;
             s = applyTsiedoe(s, switchId);
             if (s === "m") return "m̩";
             if (s === "ng") return "ŋ̩"; // Default to standalone ŋ̩
+            // Bare mh/nh/lh/nk: same syllabic consonants, glottalized (see WUGNIU_INITIALS_SINITIC).
+            if (s === "mh") return "ʔm̩";
+            if (s === "nh") return "ʔn̩";
+            if (s === "lh") return "ʔl̩";
+            if (s === "nk") return "ʔŋ̩";
 
             let rom = unsimplifyGlides(s); // gh + i/u written as bare y-/w- in wugniu
 
@@ -2067,6 +2148,19 @@
         window.onload = () => {
             resizeAll();
         };
+        // dict.js ships WUGNIU_PRON_DICT keyed by pronunciation (tone-1 readings under their
+        // own accented key, e.g. "tsy" vs "tsý"); character-keyed lookups used throughout this
+        // file are derived from it once here, mirroring how SIMP_MAP is derived below.
+        const WUGNIU_DICT = {};
+        for (const [pron, entries] of Object.entries(WUGNIU_PRON_DICT)) {
+            for (const { c, s, w } of entries) {
+                if (!WUGNIU_DICT[c]) WUGNIU_DICT[c] = { s, p: [], pw: [], w: 0 };
+                WUGNIU_DICT[c].p.push(pron);
+                WUGNIU_DICT[c].pw.push(w);
+                if (w > WUGNIU_DICT[c].w) WUGNIU_DICT[c].w = w;
+            }
+        }
+
         const SIMP_MAP = {};
         for (const [trad, data] of Object.entries(WUGNIU_DICT)) {
             if (data.s && data.s !== trad) {
@@ -2085,15 +2179,9 @@
             let allResults = [];
 
             // 1. Try to match the entire input as a single Wugniu phrase (handles spaces in pronunciations like "zi iau")
-            if (/^[a-zA-Z\s\-]+$/.test(inputVal)) {
+            if (/^[a-zA-ZáéíóúýÁÉÍÓÚÝ\s\-]+$/.test(inputVal)) {
                 const searchStrFull = inputVal.toLowerCase().trim();
-                let exactMatches = [];
-                for (const [char, data] of Object.entries(WUGNIU_DICT)) {
-                    const pIndex = findPronMatch(data, searchStrFull);
-                    if (pIndex !== -1) {
-                        exactMatches.push({ trad: char, simp: data.s, wugniu: data.p[pIndex], pron_weight: data.pw[pIndex], w: data.w || 0 });
-                    }
-                }
+                let exactMatches = findPronMatches(searchStrFull);
                 if (exactMatches.length > 0) {
                     exactMatches.sort((a, b) => b.pron_weight - a.pron_weight);
                     allResults = exactMatches;
@@ -2120,16 +2208,10 @@
                         data.p.forEach((pron, idx) => {
                             results.push({ trad: tradMatch, simp: data.s, wugniu: pron, pron_weight: data.pw[idx], w: data.w || 0 });
                         });
-                    } else if (/^[a-zA-Z\-]+$/.test(inputStr)) {
+                    } else if (/^[a-zA-ZáéíóúýÁÉÍÓÚÝ\-]+$/.test(inputStr)) {
                         // Wugniu reverse lookup (case-insensitive)
-                        let matchedChars = [];
                         const searchStr = inputStr.toLowerCase();
-                        for (const [char, data] of Object.entries(WUGNIU_DICT)) {
-                            const pIndex = findPronMatch(data, searchStr);
-                            if (pIndex !== -1) {
-                                matchedChars.push({ trad: char, simp: data.s, wugniu: data.p[pIndex], pron_weight: data.pw[pIndex], w: data.w || 0 });
-                            }
-                        }
+                        let matchedChars = findPronMatches(searchStr);
                         // Sort by pronunciation weight descending
                         matchedChars.sort((a, b) => b.pron_weight - a.pron_weight);
                         results = results.concat(matchedChars);
