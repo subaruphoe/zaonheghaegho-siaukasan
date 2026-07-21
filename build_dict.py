@@ -13,7 +13,7 @@ Tone-1 readings get their own key (accented spelling), separate from the plain/o
 key for the same base - e.g. "tsy" and "tsý" are different keys. index.html builds a
 character-keyed index from this once at load (mirrors how SIMP_MAP is already derived).
 """
-import re, json
+import re, json, os
 from opencc import OpenCC
 
 ZAONHE_SRC = '/Users/subarupan/Developer/wugniu_zaonhe_dic.yaml'
@@ -30,6 +30,24 @@ WORD_SRCS = [
 # primary entries (zaonhe) - present and matchable, but never outrank a real curated reading.
 NEW_WORD_WEIGHT = 50
 OUT = '/Users/subarupan/Developer/zaonheghaegho-siaukasan/dict.js'
+
+# Hand-curated entries not present in any source YAML (verified readings supplied directly).
+# {char/word: [(pronunciation, weight), ...]}. Applied last, overriding any auto-derived entry
+# for the same key so these readings are authoritative.
+MANUAL_ENTRIES = {
+    '𡋤': [('he', 100)],           # replicated-form final of "在", reads he
+    '垃𡋤': [('laq he', 100)],     # "在" (replicated form)
+    '垃垓': [('laq ke', 100)],     # "在" (replicated form); 垓 here reads ke, not the dict's ké
+}
+# Simp/trad exceptions come from the shared overrides file (same file the runtime converter,
+# build_convert.py, reads) so the dict's stored 's' field and the on-page converter can't drift.
+# 'invariant' chars are never converted in either direction; here that means the stored simplified
+# form = the char itself. Explicit t2s remaps also apply to the 's' field.
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'simp_trad_overrides.json'),
+          encoding='utf-8') as _f:
+    _ov = json.load(_f)
+SIMP_OVERRIDES = {ch: ch for ch in _ov.get('invariant', [])}
+SIMP_OVERRIDES.update(_ov.get('t2s', {}))
 
 WUGNIU_INITIALS_SINITIC = ["ph", "p", "b", "m", "f", "v", "mh", "th", "t", "d", "n", "l",
     "nh", "nk", "lh", "tsh", "ts", "s", "z", "ch", "c", "j", "gn", "sh", "zh",
@@ -385,6 +403,59 @@ for src in WORD_SRCS:
 print(f"[words] added {words_added} new word entries, extended {words_extended} existing words "
       f"with an alternate reading, skipped {words_skipped_missing_char} (a character had no dict data)")
 
+# ---------- Step 4.6: apply hand-curated overrides ----------
+# Last write wins: fully replace any auto-derived entry so the supplied readings are canonical.
+for key, readings in MANUAL_ENTRIES.items():
+    dict_data[key] = [{'pronunciation': p, 'weight': w, 'is_percentage': True} for p, w in readings]
+print(f"[manual] applied {len(MANUAL_ENTRIES)} hand-curated entries")
+
+# ---------- Step 4.7: merge rime ie -> i (accent é->í), preserving 廿 ----------
+# This variety does not contrast final -ie against -i, so collapse every syllable-final `ie`/`ié`
+# onto `i`/`í`. ONLY the character 廿 (reads "gnie") keeps its ie; every other char on a gnie/*ie
+# reading converts (gnie->gni, pié->pí, ...). `ieu`/`ien`/`ieq` are NOT final-ie (they end u/n/q),
+# so a suffix test on 'ie'/'ié' leaves them untouched. Run here, before Step 5, so per-char weight
+# percentages re-normalize naturally and Step 6 inversion aggregates collisions (pié ∪ pí) for free.
+IE_FREEZE_CHARS = {'廿'}
+
+def merge_ie_final(syl):
+    if syl.endswith('ié'):
+        return syl[:-2] + 'í'
+    if syl.endswith('ie'):
+        return syl[:-2] + 'i'
+    return syl
+
+_ie_words = 0
+_ie_collapsed = 0
+for word, entries in dict_data.items():
+    chars = list(word)
+    changed = False
+    for e in entries:
+        syls = e['pronunciation'].split(' ')
+        if len(syls) == len(chars):        # 1:1 syllable<->char: freeze only the 廿 slot
+            new = [s if chars[i] in IE_FREEZE_CHARS else merge_ie_final(s) for i, s in enumerate(syls)]
+        elif word in IE_FREEZE_CHARS:       # standalone 廿 (any spacing): never touch
+            new = syls
+        else:                               # count mismatch (rare): transform all syllables
+            new = [merge_ie_final(s) for s in syls]
+        np = ' '.join(new)
+        if np != e['pronunciation']:
+            e['pronunciation'] = np
+            changed = True
+    if not changed:
+        continue
+    _ie_words += 1
+    seen = {}                               # dedup readings that collapsed onto one pron (max weight)
+    for e in entries:
+        p = e['pronunciation']
+        if p in seen:
+            seen[p]['weight'] = max(seen[p]['weight'], e['weight'])
+            _ie_collapsed += 1
+        else:
+            seen[p] = e
+    dict_data[word] = list(seen.values())
+
+print(f"[ie->i] rewrote {_ie_words} words, collapsed {_ie_collapsed} duplicate readings; 廿 preserved")
+
 # ---------- Step 5: finalize per-character records (mirrors inject_dict.py tail) ----------
 cc = OpenCC('t2s')
 final_dict = {}
@@ -403,7 +474,13 @@ for word in dict_data:
             pws.append(round((x['weight'] / total_numerical) * 100) if total_numerical > 0 else 100)
 
     max_weight = dict_data[word][0]['weight'] if dict_data[word] else 100
-    simp = cc.convert(word)
+    # Normally convert the whole word (keeps OpenCC's phrase-level context). Only when the word
+    # contains an override char (e.g. 睏) do we go per-char so that char can be pinned without
+    # disturbing OpenCC's handling of the rest.
+    if any(ch in SIMP_OVERRIDES for ch in word):
+        simp = ''.join(SIMP_OVERRIDES.get(ch, cc.convert(ch)) for ch in word)
+    else:
+        simp = cc.convert(word)
     final_dict[word] = {"s": simp, "p": prons, "pw": pws, "w": max_weight}
 
 print(f"[final] {len(final_dict)} character/word entries")

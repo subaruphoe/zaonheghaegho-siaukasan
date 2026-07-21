@@ -1,0 +1,6 @@
+{
+  "_comment": "Shared simp/trad conversion exceptions. Read by build_dict.py (for the dict 's' field) and build_convert.py (for the runtime converter) so both stay consistent. 'invariant': chars never converted in EITHER direction (e.g. Wu-specific 睏, which OpenCC would wrongly merge with 困). 's2t'/'t2s': explicit remaps that win over OpenCC's tables.",
+  "invariant": ["睏"],
+  "s2t": {},
+  "t2s": {}
+}

@@ -64,8 +64,15 @@
             gap: 20px;
         }
 
+        /* Two-column sections (tone, translation). Class instead of inline style so the mobile
+           media query below can override it — inline styles would win over @media and stay wide. */
+        .pane-container.two-col {
+            grid-template-columns: 1fr 1fr;
+        }
+
         @media (max-width: 900px) {
-            .pane-container {
+            .pane-container,
+            .pane-container.two-col {
                 grid-template-columns: 1fr;
             }
         }
@@ -135,6 +142,66 @@
             box-sizing: border-box;
             overflow-wrap: break-word;
             white-space: pre-wrap;
+        }
+
+        /* Translation output: main translation + alternates share one box. Leaves bottom room
+           for the copy button (like textarea). */
+        .translate-output-wrap {
+            padding: 12px 12px 40px 12px;
+            box-sizing: border-box;
+        }
+
+        .translate-output {
+            font-size: 20px;
+            line-height: 1.6;
+            color: var(--text-main);
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+            min-height: 30px;
+        }
+
+        .translate-output:empty::before {
+            content: attr(data-placeholder);
+            color: var(--text-muted);
+            font-size: 17px;
+        }
+
+        /* 別他翻譯 (alternate translations): smaller grey block beneath the main translation,
+           each line a full alternate sentence + a note on what differs. */
+        #translate-alts {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        #translate-alts:not(:empty) {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .alt-heading {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        .alt-line {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .alt-line .alt-text {
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+
+        .alt-line .alt-note {
+            font-size: 12px;
+            color: var(--text-muted);
+            opacity: 0.8;
         }
 
         .syl-wrap {
@@ -549,7 +616,7 @@
         <div class="header" style="margin-top: 20px; margin-bottom: 10px;">
             <h2>連讀變調</h2>
         </div>
-        <div class="pane-container" style="grid-template-columns: 1fr 1fr;">
+        <div class="pane-container two-col">
             <div class="pane">
                 <div class="pane-header">
                     <span>文本</span>
@@ -587,6 +654,31 @@
         </div>
         <div id="tone-warnings" style="text-align:center; color: var(--text-muted); font-size: 13px; min-height: 18px; margin-bottom: 10px;"></div>
 
+        <!-- Mandarin -> Shanghainese Translation Section -->
+        <div class="header" style="margin-top: 20px; margin-bottom: 10px;">
+            <h2>普通閑話翻上海閑話</h2>
+        </div>
+        <div class="pane-container two-col">
+            <div class="pane">
+                <div class="pane-header">
+                    <span>普通閑話</span>
+                </div>
+                <textarea id="input-translate" placeholder="打普通話... (e.g. 他去上海)"></textarea>
+                <button class="copy-btn" id="translate-btn" style="background: var(--focus-color);">翻譯</button>
+            </div>
+            <div class="pane">
+                <div class="pane-header">
+                    <span>上海閑話</span>
+                </div>
+                <div class="translate-output-wrap">
+                    <div id="output-translate" class="translate-output" data-placeholder="翻譯結果出來搿𡍲..."></div>
+                    <div id="translate-alts"></div>
+                </div>
+                <button class="copy-btn" id="copy-btn-translate"><span class="text-default">拷貝</span><span
+                        class="text-success">✓</span></button>
+            </div>
+        </div>
+
         <!-- Dictionary Lookup Section -->
         <div class="header" style="margin-top: 20px; margin-bottom: 10px;">
             <h2>尋字典發音</h2>
@@ -609,6 +701,8 @@
     </div>
 
     <script src="dict.js"></script>
+    <script src="convert.js"></script>
+    <script src="translate.js"></script>
     <script>
 
         function lookupWord(word) {
@@ -1490,7 +1584,9 @@
             }
             inputTone.dataset.plain = text;
             convertPhraseWithSandhi(text, "sinitic");
-            resizeAll();
+            // convertPhraseWithSandhi already drew the curve for outputTone; only the input
+            // boxes still need re-measuring, so skip resizeAll's redundant second draw.
+            resizeInputs();
         }
 
         function computeSandhiContours(categories) {
@@ -1662,14 +1758,14 @@
 
             const contours = computeGroupedSandhiContours(sandhiCategories, boundaries);
 
-            const htmlParts = infos.map((info, idx) => {
+            // One pass per syllable: the IPA is identical for both the on-page HTML and the
+            // plain-text (copy) form, so convert once and feed both.
+            const htmlParts = [];
+            const plainParts = [];
+            infos.forEach((info, idx) => {
                 const ipa = wugniuToIpaCore(info.plain, variant, 'tone-tsiedoe-switch');
-                return renderSyllableHTML(ipa, contours ? contours[idx] : null, useBar);
-            });
-
-            const plainParts = infos.map((info, idx) => {
-                const ipa = wugniuToIpaCore(info.plain, variant, 'tone-tsiedoe-switch');
-                return contours ? ipa + toneMarkText(contours[idx], useBar) : ipa;
+                htmlParts.push(renderSyllableHTML(ipa, contours ? contours[idx] : null, useBar));
+                plainParts.push(contours ? ipa + toneMarkText(contours[idx], useBar) : ipa);
             });
 
             // The only case with no contour and valid input: some "+"-delimited group is longer
@@ -1733,8 +1829,9 @@
             outputBox.dataset.plain = outPlain;
             drawContinuousToneCurve(outputBox);
             // Redraw once the webfont loads: measuring syllable widths before it's ready builds
-            // the curve from fallback-font metrics, which mismatch after the font swaps in.
-            if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+            // the curve from fallback-font metrics, which mismatch after the font swaps in. Once
+            // the font is loaded this redraw is redundant, so skip scheduling it on every keystroke.
+            if (document.fonts && document.fonts.status !== "loaded" && document.fonts.ready && document.fonts.ready.then) {
                 document.fonts.ready.then(() => drawContinuousToneCurve(outputBox)).catch(() => {});
             }
             // Dedupe: the same syllable repeated in a phrase would otherwise stack identical
@@ -1970,11 +2067,15 @@
             }
         }
 
-        function resizeAll() {
+        function resizeInputs() {
             autoResize(inputSinitic);
             autoResize(inputBroad);
             autoResize(inputWugniu);
             autoResize(inputTone);
+        }
+
+        function resizeAll() {
+            resizeInputs();
             if (outputTone) drawContinuousToneCurve(outputTone);
         }
 
@@ -2143,6 +2244,49 @@
         setupCopyBtn(copyBtnWugniu, inputWugniu);
         setupCopyBtn(copyBtnToneIn, inputTone);
         setupCopyBtn(copyBtnToneOut, outputTone);
+
+        // --- Mandarin -> Shanghainese translation (translate.js) ---
+        const inputTranslate = document.getElementById("input-translate");
+        const outputTranslate = document.getElementById("output-translate");
+        outputTranslate.dataset.plain = "";
+        const translateBtn = document.getElementById("translate-btn");
+        const copyBtnTranslate = document.getElementById("copy-btn-translate");
+        const translateAlts = document.getElementById("translate-alts");
+
+        function runTranslation() {
+            const src = inputTranslate.value.trim();
+            translateAlts.innerHTML = "";
+            if (!src) { outputTranslate.textContent = ""; outputTranslate.dataset.plain = ""; return; }
+            const r = translateToWu(src);
+            outputTranslate.textContent = r.output;
+            outputTranslate.dataset.plain = r.output;
+            renderAlts(r.alts);
+        }
+
+        // Render 別他翻譯: a grey heading + one line per alternate full-sentence translation.
+        function renderAlts(alts) {
+            if (!alts || !alts.length) return;
+            const heading = document.createElement("div");
+            heading.className = "alt-heading";
+            heading.textContent = "別他翻譯";
+            translateAlts.appendChild(heading);
+            for (const a of alts) {
+                const line = document.createElement("div");
+                line.className = "alt-line";
+                const t = document.createElement("div");
+                t.className = "alt-text"; t.textContent = a.text;
+                const n = document.createElement("div");
+                n.className = "alt-note"; n.textContent = a.note;
+                line.appendChild(t); line.appendChild(n);
+                translateAlts.appendChild(line);
+            }
+        }
+
+        translateBtn.addEventListener("click", runTranslation);
+        inputTranslate.addEventListener("keydown", (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); runTranslation(); }
+        });
+        setupCopyBtn(copyBtnTranslate, outputTranslate);
 
         // Resize textareas on load
         window.onload = () => {
