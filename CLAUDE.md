@@ -28,20 +28,27 @@ The UI (all in `index.html`, `lang="zh"`, labels in Shanghainese) has these pane
 
 ## Regenerating the data files (Python)
 
-`dict.js` and `convert.js` are **auto-generated — never hand-edit them.** Both
-scripts read the Homebrew OpenCC dictionaries at
-`/opt/homebrew/lib/python3.14/site-packages/opencc/dictionary`, so run them with
-the `python3.14` that has `opencc` installed (`pip install opencc`):
+`dict.js` and `convert.js` are **auto-generated — never hand-edit them.**
+
+**`dict.js` now comes from the Navi IME lexicon build** (GitHub `subaruphoe/Navi-IME`,
+`Tools/lexicon/build_navi.py`, function `export_siaukasan_dict`). It shares Navi's source
+normalisation, manual corrections, function-word orthography and 爲／裏 standardisation,
+but keeps `-ae` finals (this site distinguishes 來／蘭; Navi only merges them for its input index)
+and takes only curated sources (zaonhe, suwu, wuphin, rime, extra, manual — no corpus-predicted
+words). 為／裡 spellings are emitted as aliases so lookups by either form work.
+To regenerate, in the Navi repo run:
 
 ```sh
-python3.14 build_dict.py      # -> dict.js
-python3.14 build_convert.py   # -> convert.js
+python3 Tools/lexicon/build_navi.py      # writes Data/build/siaukasan/dict.js
+cp "Data/build/siaukasan/dict.js" ~/Developer/zaonheghaegho-siaukasan/dict.js
 ```
 
-`build_dict.py` also reads source YAMLs from `/Users/subarupan/Developer/`
-(`wugniu_zaonhe_dic.yaml` primary, `wugniu_suwu.dict.yaml` supplementary,
-`wuphin.word/phrases.dict.yaml`) — these live outside the repo. Paths are
-hard-coded near the top of the script.
+`build_dict.py` is the old generator, kept for reference only; don't use it for new builds.
+`convert.js` is still built here:
+
+```sh
+python3.14 build_convert.py   # -> convert.js (needs `pip install opencc`)
+```
 
 `simp_trad_overrides.json` is the **shared** source of simp/trad exceptions,
 read by BOTH build scripts so `dict.js`'s stored `s` field and the runtime
